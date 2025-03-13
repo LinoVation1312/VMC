@@ -51,7 +51,7 @@ st.markdown(f"""
 )
 
 # Header VMC
-st.image("https://i.ibb.co/0jq6Y3N/vmc-logo.png", width=300)  # Remplacez par l'URL de votre logo
+st.image("https://i.ibb.co/0jq6Y3N/vmc-logo.png", use_container_width=300) 
 st.title("VMC Visual Processor")
 st.markdown("**Outils de traitement visuel pour performances live** 🎧⚡")
 
@@ -64,7 +64,7 @@ def image_to_bytes(img_array, format='JPEG'):
 with st.sidebar:
     st.header("🎛️ Contrôles VMC")
     
-    # Section Upload avec style
+    # Section Upload
     with st.container(border=True):
         st.subheader("🖼️ Source Audio-Visuelle")
         uploaded_file = st.file_uploader("Charger un sample visuel", type=["jpg", "png", "jpeg"], label_visibility="collapsed")
@@ -88,54 +88,75 @@ with st.sidebar:
         st.subheader("🌀 Effets")
         apply_gaussian = st.checkbox("Reverb Gaussien")
         if apply_gaussian:
-            gaussian_sigma = st.slider("Intensité", 0.0, 3.0, 1.0, help="Contrôle la diffusion lumineuse")
+            gaussian_sigma = st.slider("Intensité", 0.0, 3.0, 1.0)
 
 # Processing section
 if uploaded_file and filter_type:
-    # Chargement avec style VMC
     with st.spinner("Processing audio-visual stream..."):
+        # Chargement et conversion
         image = Image.open(uploaded_file).convert('RGB')
         img_array = np.array(image)
         
-        # Conversion en niveau de gris
-        img_gray = np.dot(img_array[..., :3], [0.2989, 0.5870, 0.1140])
-        img_gray = (img_gray - img_gray.min()) / (img_gray.max() - img_gray.min())
+        # Conversion en niveaux de gris avec normalisation robuste
+        if img_array.ndim == 3:
+            img_gray = np.dot(img_array[..., :3], [0.2989, 0.5870, 0.1140]).astype(float)
+        else:
+            img_gray = img_array.astype(float)
+            
+        img_gray = (img_gray - np.min(img_gray)) / (np.max(img_gray) - np.min(img_gray) + 1e-8)  # Évite la division par zéro
         
-        # Application du filtre Gaussien
+        # Pré-filtrage Gaussien
         if apply_gaussian:
             img_gray = ndimage.gaussian_filter(img_gray, sigma=gaussian_sigma)
         
-        # Définition des kernels
+        # Nouveaux kernels non normalisés
         kernels = {
-            'Sobel': {'h': np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])/4, 
-                      'v': np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]])/4},
-            'Prewitt': {'h': np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]])/3,
-                        'v': np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]])/3},
-            'Roberts': {'h': np.array([[1, 0], [0, -1]]),
-                        'v': np.array([[0, 1], [-1, 0]])}
+            'Sobel': {
+                'h': np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]),
+                'v': np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]])
+            },
+            'Prewitt': {
+                'h': np.array([[-1, 0, 1], [-1, 0, 1], [-1, 0, 1]]),
+                'v': np.array([[-1, -1, -1], [0, 0, 0], [1, 1, 1]])
+            },
+            'Roberts': {
+                'h': np.array([[1, 0], [0, -1]]),
+                'v': np.array([[0, 1], [-1, 0]])
+            }
         }
 
-        # Calcul des résultats
         results = {}
         thresholds = {}
         
         for name in filter_type:
+            # Calcul des gradients
             h = ndimage.convolve(img_gray, kernels[name]['h'], mode='nearest')
             v = ndimage.convolve(img_gray, kernels[name]['v'], mode='nearest')
-            results[name] = np.sqrt(h**2 + v**2) * 1.2  # Boost pour visuel techno
             
-            # Calcul du seuil
+            # Calcul de la magnitude avec normalisation adaptative
+            grad_mag = np.sqrt(h**2 + v**2)
+            grad_mag = (grad_mag - np.min(grad_mag)) / (np.max(grad_mag) - np.min(grad_mag) + 1e-8)
+            results[name] = grad_mag * 1.5  # Boost techno contrôlé
+            
+            # Calcul du seuil Otsu amélioré
             if auto_threshold:
-                hist = np.histogram(results[name], bins=256)[0]
-                total = max(hist.sum(), 1)
+                hist, bins = np.histogram(results[name] * 255, bins=256, range=(0, 255))
+                bin_centers = (bins[:-1] + bins[1:]) / 2
+                total = hist.sum()
+                
+                if total == 0:
+                    thresholds[name] = 0.5
+                    continue
+                
                 norm_hist = hist / total
                 cumulative = np.cumsum(norm_hist)
-                cumulative_mean = np.cumsum(norm_hist * np.arange(256))
-                max_var = best_thresh = 0
+                cumulative_mean = np.cumsum(norm_hist * bin_centers)
                 
+                max_var = best_thresh = 0
                 for t in range(1, 255):
                     w0, w1 = cumulative[t], 1 - cumulative[t]
-                    if w0 == 0 or w1 == 0: continue
+                    if w0 < 1e-8 or w1 < 1e-8:
+                        continue
                     mean0 = cumulative_mean[t] / w0
                     mean1 = (cumulative_mean[-1] - cumulative_mean[t]) / w1
                     var = w0 * w1 * (mean0 - mean1)**2
@@ -145,7 +166,11 @@ if uploaded_file and filter_type:
             else:
                 thresholds[name] = manual_thresholds[name]
 
-        binary_results = {name: (results[name] > thresholds[name]) for name in filter_type}
+        # Application des seuils avec vérification
+        binary_results = {}
+        for name in filter_type:
+            threshold = np.clip(thresholds[name], 0.01, 0.99)  # Évite les seuils extrêmes
+            binary_results[name] = (results[name] > threshold).astype(float)
 
     # Affichage des résultats
     st.header("📡 Sortie Visuelle Live", divider="red")
@@ -153,12 +178,12 @@ if uploaded_file and filter_type:
     
     for col, name in zip(cols, filter_type):
         with col:
-            # Création d'une vignette stylisée
             with st.container(border=True):
+                # Vignette stylisée
                 st.markdown(f"#### {name} `v{np.random.uniform(1.0, 3.0):.1f}`")
                 st.image(
                     binary_results[name], 
-                    use_container_width=True,  # Correction ici
+                    use_container_width=True,
                     caption=f"Seuil: {thresholds[name]:.3f} | BPM: {np.random.randint(120, 150)}"
                 )
                 
@@ -172,7 +197,7 @@ if uploaded_file and filter_type:
                     use_container_width=True
                 )
 
-    # Visualisation supplémentaire
+    # Visualisation des gradients
     with st.expander("🔬 Analyse de Fréquence"):
         fig, ax = plt.subplots(figsize=(10, 4))
         for name in filter_type:
