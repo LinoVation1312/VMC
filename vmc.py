@@ -34,28 +34,42 @@ def image_to_bytes(img_array, format='JPEG'):
     img.save(img_byte_arr, format=format)
     return img_byte_arr.getvalue()
 
-def apply_distortion(img, intensity=0.5, frequency=10, mix=1.0):
-    """Distortion ondulatoire corrigée"""
-    rows, cols = img.shape[0], img.shape[1]
+def apply_distortion(img_rgb, intensity=0.5, frequency=10, mix=1.0):
+    """Version corrigée pour les images RGB"""
+    if len(img_rgb.shape) != 3:
+        raise ValueError("L'image doit être au format RGB (3 canaux)")
     
-    x = np.linspace(0, frequency * np.pi, cols)
-    y = np.linspace(0, frequency * np.pi, rows)
-    xx, yy = np.meshgrid(x, y)
+    distorted_channels = []
+    for channel in range(3):
+        channel_data = img_rgb[..., channel]
+        rows, cols = channel_data.shape
+        
+        # Génération des coordonnées
+        x = np.linspace(0, frequency * np.pi, cols)
+        y = np.linspace(0, frequency * np.pi, rows)
+        xx, yy = np.meshgrid(x, y)
+        
+        # Calcul des déformations
+        dx = intensity * np.sin(xx) * np.cos(yy) * 20
+        dy = intensity * np.cos(xx) * np.sin(yy) * 20
+        
+        # Grille de coordonnées originale
+        grid_x, grid_y = np.meshgrid(np.arange(cols), np.arange(rows))
+        
+        # Nouvelles coordonnées
+        new_x = np.clip(grid_x + dx, 0, cols-1)
+        new_y = np.clip(grid_y + dy, 0, rows-1)
+        
+        # Application de la déformation
+        coordinates = np.array([new_y.ravel(), new_x.ravel()])
+        distorted = ndimage.map_coordinates(channel_data, coordinates, order=1, mode='reflect')
+        distorted = distorted.reshape(channel_data.shape)
+        
+        # Mixage
+        distorted_channel = channel_data * (1 - mix) + distorted * mix
+        distorted_channels.append(distorted_channel)
     
-    distortion_x = intensity * np.sin(xx) * np.cos(yy) * 20
-    distortion_y = intensity * np.cos(xx) * np.sin(yy) * 20
-    
-    original_x, original_y = np.meshgrid(np.arange(cols), np.arange(rows))
-    
-    new_x = np.clip(original_x + distortion_x, 0, cols-1)
-    new_y = np.clip(original_y + distortion_y, 0, rows-1)
-    
-    coordinates = np.array([new_y.ravel(), new_x.ravel()])
-    
-    distorted = ndimage.map_coordinates(img, coordinates, order=1, mode='reflect')
-    distorted = distorted.reshape(img.shape)
-    
-    return img * (1 - mix) + distorted * mix
+    return np.stack(distorted_channels, axis=-1)
 
 def apply_inversion(img, mix=1.0):
     return img * (1 - mix) + (1 - img) * mix
@@ -65,7 +79,6 @@ with st.sidebar:
     st.header("Contrôles FX")
     uploaded_file = st.file_uploader("Charger une image", type=["jpg", "png", "jpeg"])
     
-    # Section nom de fichier
     filename_input = st.text_input("Nom du fichier", value="vmc_export")
     
     effects = st.multiselect(
@@ -79,7 +92,7 @@ with st.sidebar:
             'Distortion',
             'Inversion des couleurs'
         ],
-        default=['Sobel Magnitude', 'Décalage Chromatique']
+        default=['Sobel Magnitude']
     )
     
     params = {}
@@ -139,7 +152,6 @@ if uploaded_file and effects:
 
         final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
 
-    # Génération du nom de fichier
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{filename_input}_{timestamp}.png"
 
@@ -165,4 +177,4 @@ else:
 
 # Footer
 st.markdown("---")
-st.markdown("**VMC Collective** - Synthèse Ultimate v7.0")
+st.markdown("**VMC Collective** - Synthèse Ultimate v8.0")
