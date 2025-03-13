@@ -35,18 +35,32 @@ def image_to_bytes(img_array, format='JPEG'):
 
 # Fonctions des nouveaux effets
 def apply_distortion(img, intensity=0.5, frequency=10, mix=1.0):
-    """Distortion ondulatoire avec contrôle dry/wet"""
-    x = np.linspace(0, frequency * np.pi, img.shape[1])
-    y = np.linspace(0, frequency * np.pi, img.shape[0])
+    """Distortion ondulatoire corrigée"""
+    rows, cols = img.shape[0], img.shape[1]
+    
+    # Génération des grilles de coordonnées
+    x = np.linspace(0, frequency * np.pi, cols)
+    y = np.linspace(0, frequency * np.pi, rows)
     xx, yy = np.meshgrid(x, y)
     
-    distortion = intensity * np.sin(xx) * np.cos(yy)
-    coords = [
-        np.clip(np.arange(img.shape[0]) + distortion * 20, 0, img.shape[0]-1),
-        np.clip(np.arange(img.shape[1]) + distortion * 20, 0, img.shape[1]-1)
-    ]
+    # Calcul des déformations X/Y séparées
+    distortion_x = intensity * np.sin(xx) * np.cos(yy) * 20
+    distortion_y = intensity * np.cos(xx) * np.sin(yy) * 20
     
-    distorted = ndimage.map_coordinates(img, coords, order=1)
+    # Création des grilles d'indices
+    original_x, original_y = np.meshgrid(np.arange(cols), np.arange(rows))
+    
+    # Application des déformations
+    new_x = np.clip(original_x + distortion_x, 0, cols-1)
+    new_y = np.clip(original_y + distortion_y, 0, rows-1)
+    
+    # Réorganisation des coordonnées pour scipy
+    coordinates = np.array([new_y.ravel(), new_x.ravel()])
+    
+    # Application de la déformation
+    distorted = ndimage.map_coordinates(img, coordinates, order=1, mode='reflect')
+    distorted = distorted.reshape(img.shape)
+    
     return img * (1 - mix) + distorted * mix
 
 def apply_inversion(img, mix=1.0):
@@ -84,15 +98,11 @@ with st.sidebar:
     if 'Décalage Chromatique' in effects:
         params['hue_shift'] = st.slider("Décalage Hue", 0.0, 1.0, 0.0)
     
-    if 'Distortion' in effects:
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            params['distortion_intensity'] = st.slider("Intensité", 0.0, 1.0, 0.5)
-        with col2:
-            params['distortion_freq'] = st.slider("Fréquence", 1, 20, 8)
-        with col3:
-            params['distortion_mix'] = st.slider("Mix", 0.0, 1.0, 1.0)
-    
+     if 'Distortion' in effects:
+            params['distortion_intensity'] = st.slider("Intensité Distortion", 0.0, 1.0, 0.5)
+            params['distortion_freq'] = st.slider("Fréquence Distortion", 1, 20, 8)
+            params['distortion_mix'] = st.slider("Mix Distortion", 0.0, 1.0, 1.0)
+        
     if 'Inversion des couleurs' in effects:
         params['inversion_mix'] = st.slider("Mix Inversion", 0.0, 1.0, 1.0)
     
@@ -124,7 +134,7 @@ if uploaded_file and effects:
                 hsv[..., 0] = (hsv[..., 0] + params['hue_shift']) % 1.0
                 result = mcolors.hsv_to_rgb(hsv)
             
-            if effect == 'Distortion':
+            if  effect == 'Distortion':
                 result = apply_distortion(
                     result,
                     intensity=params['distortion_intensity'],
