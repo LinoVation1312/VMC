@@ -7,7 +7,7 @@ import matplotlib.colors as mcolors
 
 # Configuration de la page
 st.set_page_config(
-    page_title="VMC Visual Synth",
+    page_title="VMC Ultimate Synth",
     page_icon="🎛️",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -24,8 +24,8 @@ st.markdown(f"""
 
 # Header VMC
 st.image("https://i.ibb.co/0jq6Y3N/vmc-logo.png", use_container_width=300)
-st.title("VMC RGB FX Processor")
-st.markdown("**Synthétiseur visuel multi-effets** 🎛️🌈")
+st.title("VMC Ultimate FX Processor")
+st.markdown("**Station de traitement visuel multi-effets** 🎛️🔥")
 
 def image_to_bytes(img_array, format='JPEG'):
     img = Image.fromarray((img_array * 255).astype(np.uint8))
@@ -33,33 +33,25 @@ def image_to_bytes(img_array, format='JPEG'):
     img.save(img_byte_arr, format=format)
     return img_byte_arr.getvalue()
 
-# Fonctions des effets
-def sobel_filter(img, mode='magnitude'):
-    """Filtres Sobel avec options de direction"""
-    kernels = {
-        'horizontal': np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]]),
-        'vertical': np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]]),
-    }
+# Fonctions des nouveaux effets
+def apply_distortion(img, intensity=0.5, frequency=10, mix=1.0):
+    """Distortion ondulatoire avec contrôle dry/wet"""
+    x = np.linspace(0, frequency * np.pi, img.shape[1])
+    y = np.linspace(0, frequency * np.pi, img.shape[0])
+    xx, yy = np.meshgrid(x, y)
     
-    if mode == 'magnitude':
-        h = ndimage.convolve(img, kernels['horizontal'])
-        v = ndimage.convolve(img, kernels['vertical'])
-        return np.sqrt(h**2 + v**2)
-    else:
-        return ndimage.convolve(img, kernels[mode])
+    distortion = intensity * np.sin(xx) * np.cos(yy)
+    coords = [
+        np.clip(np.arange(img.shape[0]) + distortion * 20, 0, img.shape[0]-1),
+        np.clip(np.arange(img.shape[1]) + distortion * 20, 0, img.shape[1]-1)
+    ]
+    
+    distorted = ndimage.map_coordinates(img, coords, order=1)
+    return img * (1 - mix) + distorted * mix
 
-def apply_rgb_effect(rgb_img, effect_func, **kwargs):
-    """Application d'effet sur chaque canal RGB"""
-    channels = []
-    for i in range(3):
-        channel = effect_func(rgb_img[..., i], **kwargs)
-        channels.append(channel)
-    return np.stack(channels, axis=-1)
-
-def grunge_effect(img, intensity=0.5):
-    """Texture analogique préservant les couleurs"""
-    noise = np.random.normal(loc=0, scale=intensity*0.3, size=img.shape)
-    return np.clip(img + noise, 0, 1)
+def apply_inversion(img, mix=1.0):
+    """Inversion des couleurs avec mixage"""
+    return img * (1 - mix) + (1 - img) * mix
 
 # Contrôles latéraux
 with st.sidebar:
@@ -69,13 +61,21 @@ with st.sidebar:
     # Sélection des effets
     effects = st.multiselect(
         "Effets à appliquer",
-        ['Sobel Magnitude', 'Sobel Horizontal', 'Sobel Vertical', 'Texture Analog', 'Décalage Chromatique'],
+        [
+            'Sobel Magnitude', 
+            'Sobel Horizontal', 
+            'Sobel Vertical', 
+            'Texture Analog', 
+            'Décalage Chromatique',
+            'Distortion',
+            'Inversion des couleurs'
+        ],
         default=['Sobel Magnitude']
     )
     
     # Paramètres des effets
     params = {}
-    if 'Sobel Magnitude' in effects or 'Sobel Horizontal' in effects or 'Sobel Vertical' in effects:
+    if any(e in effects for e in ['Sobel Magnitude', 'Sobel Horizontal', 'Sobel Vertical']):
         params['sobel_boost'] = st.slider("Intensité Sobel", 0.1, 5.0, 1.0, 0.1)
     
     if 'Texture Analog' in effects:
@@ -84,7 +84,19 @@ with st.sidebar:
     if 'Décalage Chromatique' in effects:
         params['hue_shift'] = st.slider("Décalage Hue", 0.0, 1.0, 0.0)
     
-    params['output_mix'] = st.slider("Mixage Final", 0.0, 1.0, 1.0, 0.1)
+    if 'Distortion' in effects:
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            params['distortion_intensity'] = st.slider("Intensité", 0.0, 1.0, 0.5)
+        with col2:
+            params['distortion_freq'] = st.slider("Fréquence", 1, 20, 8)
+        with col3:
+            params['distortion_mix'] = st.slider("Mix", 0.0, 1.0, 1.0)
+    
+    if 'Inversion des couleurs' in effects:
+        params['inversion_mix'] = st.slider("Mix Inversion", 0.0, 1.0, 1.0)
+    
+    params['global_mix'] = st.slider("Mixage Global", 0.0, 1.0, 1.0, 0.1)
 
 # Traitement principal
 if uploaded_file and effects:
@@ -94,50 +106,60 @@ if uploaded_file and effects:
         img_array = np.array(img).astype(float)/255.0
         result = np.copy(img_array)
         
-        # Application des effets sélectionnés
+        # Application des effets dans l'ordre de sélection
         for effect in effects:
             if 'Sobel' in effect:
                 mode = effect.split()[-1].lower()
-                sobel_result = apply_rgb_effect(
-                    img_array,
-                    lambda x, m=mode: sobel_filter(x, m) * params['sobel_boost']
-                )
-                result = np.clip(result + sobel_result, 0, 1)
+                h = ndimage.sobel(result[..., 0], axis=0 if 'horizontal' in mode else 1)
+                v = ndimage.sobel(result[..., 1], axis=0 if 'horizontal' in mode else 1)
+                edges = np.stack([h, v, np.zeros_like(h)], axis=-1) * params['sobel_boost']
+                result = np.clip(result + edges, 0, 1)
             
             if effect == 'Texture Analog':
-                result = grunge_effect(result, params['grunge_intensity'])
+                noise = np.random.normal(0, params['grunge_intensity'], result.shape)
+                result = np.clip(result + noise, 0, 1)
             
             if effect == 'Décalage Chromatique':
                 hsv = mcolors.rgb_to_hsv(result)
                 hsv[..., 0] = (hsv[..., 0] + params['hue_shift']) % 1.0
                 result = mcolors.hsv_to_rgb(hsv)
-        
+            
+            if effect == 'Distortion':
+                result = apply_distortion(
+                    result,
+                    intensity=params['distortion_intensity'],
+                    frequency=params['distortion_freq'],
+                    mix=params['distortion_mix']
+                )
+            
+            if effect == 'Inversion des couleurs':
+                result = apply_inversion(result, params['inversion_mix'])
+
         # Mixage final avec l'original
-        final_output = img_array * (1 - params['output_mix']) + result * params['output_mix']
+        final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
 
     # Affichage
     col1, col2 = st.columns([3, 1])
     
     with col1:
-        st.image(final_output, use_container_width=True, caption="Sortie RGB")
+        st.image(final_output, use_container_width=True, caption="SORTIE FINALE")
         
     with col2:
         st.download_button(
             "📥 Exporter",
             image_to_bytes(final_output, 'PNG'),
-            file_name=f"vmc_rgb_{np.random.randint(1000,9999)}.png",
+            file_name=f"vmc_ultimate_{np.random.randint(1000,9999)}.png",
             mime="image/png"
         )
         
         # Statistiques
-        st.markdown("**Canaux RGB Moyens:**")
-        st.write(f"- Rouge: {final_output[..., 0].mean():.2f}")
-        st.write(f"- Vert: {final_output[..., 1].mean():.2f}")
-        st.write(f"- Bleu: {final_output[..., 2].mean():.2f}")
+        st.markdown("**Analyse RGB:**")
+        rgb_mean = final_output.mean(axis=(0,1))
+        st.write(f"R: {rgb_mean[0]:.2f} | G: {rgb_mean[1]:.2f} | B: {rgb_mean[2]:.2f}")
 
 else:
     st.info("⬅️ Chargez une image et sélectionnez des effets")
 
 # Footer
 st.markdown("---")
-st.markdown("**VMC Collective** - Synthèse visuelle RGB v5.0")
+st.markdown("**VMC Collective** - Synthèse Ultimate v6.0")
