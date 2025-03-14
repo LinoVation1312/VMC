@@ -1,7 +1,7 @@
 import numpy as np
 import streamlit as st
 from scipy import ndimage
-from PIL import Image
+from PIL import Image, ImageOps
 import io
 import matplotlib.colors as mcolors
 from datetime import datetime
@@ -14,12 +14,20 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Paramètres de performance
+MAX_IMAGE_SIZE = 2000  # Taille max en pixels (côté le plus long)
+MAX_FILE_SIZE_MB = 10  # Taille max du fichier en MB
+QUALITY = 85           # Qualité JPEG (0-100)
+PROCESSING_LIMIT = 4000  # Limite de traitement en pixels
+
 # Style CSS
 st.markdown(f"""
     <style>
     .main {{ background-color: #0E1117; color: #FAFAFA; }}
     .st-emotion-cache-6qob1r {{ background-color: #1A1D24 !important; }}
     h1 {{ color: #FF4B4B !important; font-family: 'Helvetica Neue', sans-serif; }}
+    .warning {{ color: #FF4B4B !important; font-weight: bold; }}
+    .info {{ color: #4BFF4B !important; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -28,10 +36,18 @@ st.image("https://i.ibb.co/0jq6Y3N/vmc-logo.png", use_container_width=300)
 st.title("VMC Ultimate FX Processor")
 st.markdown("**Station de traitement visuel multi-effets** 🎛️🔥")
 
+def optimize_image(image, max_size):
+    """Redimensionne l'image tout en conservant le ratio"""
+    img = ImageOps.exif_transpose(image)  # Corrige l'orientation
+    if max(img.size) > max_size:
+        img.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
+    return img
+
 def image_to_bytes(img_array, format='JPEG'):
+    """Conversion avec compression optimisée"""
     img = Image.fromarray((img_array * 255).astype(np.uint8))
     img_byte_arr = io.BytesIO()
-    img.save(img_byte_arr, format=format)
+    img.save(img_byte_arr, format=format, quality=QUALITY, optimize=True)
     return img_byte_arr.getvalue()
 
 def apply_distortion(img_rgb, intensity=0.5, frequency=10, mix=1.0):
@@ -77,7 +93,20 @@ def apply_inversion(img, mix=1.0):
 # Contrôles latéraux
 with st.sidebar:
     st.header("Contrôles FX")
-    uploaded_file = st.file_uploader("Charger une image", type=["jpg", "png", "jpeg"])
+    
+    # Gestion des fichiers uploadés
+    uploaded_file = st.file_uploader(
+        "Charger une image (max {}MB)".format(MAX_FILE_SIZE_MB),
+        type=["jpg", "png", "jpeg"],
+        help="Les images trop grandes seront automatiquement redimensionnées"
+    )
+    
+    # Vérification de la taille du fichier
+    if uploaded_file is not None:
+        file_size = len(uploaded_file.getvalue()) / (1024 * 1024)  # Taille en MB
+        if file_size > MAX_FILE_SIZE_MB:
+            st.markdown(f'<p class="warning">Attention : Fichier trop volumineux ({file_size:.1f}MB > {MAX_FILE_SIZE_MB}MB)</p>', unsafe_allow_html=True)
+            st.stop()
     
     filename_input = st.text_input("Nom du fichier", value="vmc_export")
     
@@ -117,64 +146,87 @@ with st.sidebar:
 
 # Traitement principal
 if uploaded_file and effects:
-    with st.spinner("Traitement en cours..."):
-        img = Image.open(uploaded_file).convert('RGB')
-        img_array = np.array(img).astype(float)/255.0
-        result = np.copy(img_array)
-        
-        for effect in effects:
-            if 'Sobel' in effect:
-                mode = effect.split()[-1].lower()
-                h = ndimage.sobel(result[..., 0], axis=0 if 'horizontal' in mode else 1)
-                v = ndimage.sobel(result[..., 1], axis=0 if 'horizontal' in mode else 1)
-                edges = np.stack([h, v, np.zeros_like(h)], axis=-1) * params['sobel_boost']
-                result = np.clip(result + edges, 0, 1)
+    try:
+        with st.spinner("Chargement et optimisation de l'image..."):
+            # Chargement et optimisation
+            img = Image.open(uploaded_file).convert('RGB')
+            original_width, original_height = img.size
             
-            if effect == 'Texture Analog':
-                noise = np.random.normal(0, params['grunge_intensity'], result.shape)
-                result = np.clip(result + noise, 0, 1)
+            # Redimensionnement si nécessaire
+            if max(img.size) > MAX_IMAGE_SIZE:
+                img = optimize_image(img, MAX_IMAGE_SIZE)
+                st.markdown(f'<p class="warning">Image redimensionnée de {original_width}x{original_height} → {img.size[0]}x{img.size[1]}</p>', unsafe_allow_html=True)
             
-            if effect == 'Décalage Chromatique':
-                hsv = mcolors.rgb_to_hsv(result)
-                hsv[..., 0] = (hsv[..., 0] + params['hue_shift']) % 1.0
-                result = mcolors.hsv_to_rgb(hsv)
+            # Conversion en array numpy
+            img_array = np.array(img).astype(float)/255.0
+            result = np.copy(img_array)
             
-            if effect == 'Distortion':
-                result = apply_distortion(
-                    result,
-                    intensity=params['distortion_intensity'],
-                    frequency=params['distortion_freq'],
-                    mix=params['distortion_mix']
-                )
+            # Vérification de la taille pour le traitement
+            if max(img_array.shape[:2]) > PROCESSING_LIMIT:
+                st.error(f"L'image est trop grande pour le traitement (max {PROCESSING_LIMIT}px)")
+                st.stop()
             
-            if effect == 'Inversion des couleurs':
-                result = apply_inversion(result, params['inversion_mix'])
+            # Application des effets
+            for effect in effects:
+                if 'Sobel' in effect:
+                    mode = effect.split()[-1].lower()
+                    h = ndimage.sobel(result[..., 0], axis=0 if 'horizontal' in mode else 1)
+                    v = ndimage.sobel(result[..., 1], axis=0 if 'horizontal' in mode else 1)
+                    edges = np.stack([h, v, np.zeros_like(h)], axis=-1) * params['sobel_boost']
+                    result = np.clip(result + edges, 0, 1)
+                
+                if effect == 'Texture Analog':
+                    noise = np.random.normal(0, params['grunge_intensity'], result.shape)
+                    result = np.clip(result + noise, 0, 1)
+                
+                if effect == 'Décalage Chromatique':
+                    hsv = mcolors.rgb_to_hsv(result)
+                    hsv[..., 0] = (hsv[..., 0] + params['hue_shift']) % 1.0
+                    result = mcolors.hsv_to_rgb(hsv)
+                
+                if effect == 'Distortion':
+                    result = apply_distortion(
+                        result,
+                        intensity=params['distortion_intensity'],
+                        frequency=params['distortion_freq'],
+                        mix=params['distortion_mix']
+                    )
+                
+                if effect == 'Inversion des couleurs':
+                    result = apply_inversion(result, params['inversion_mix'])
 
-        final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
+            # Mixage final
+            final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
 
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{filename_input}_{timestamp}.png"
+        # Génération du nom de fichier
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{filename_input}_{timestamp}.png"
 
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        st.image(final_output, use_container_width=True, caption="SORTIE FINALE")
+        # Affichage
+        col1, col2 = st.columns([3, 1])
         
-    with col2:
-        st.download_button(
-            "📥 Exporter",
-            image_to_bytes(final_output, 'PNG'),
-            file_name=filename,
-            mime="image/png"
-        )
-        
-        st.markdown("**Analyse RGB:**")
-        rgb_mean = final_output.mean(axis=(0,1))
-        st.write(f"R: {rgb_mean[0]:.2f} | G: {rgb_mean[1]:.2f} | B: {rgb_mean[2]:.2f}")
+        with col1:
+            st.image(final_output, use_container_width=True, caption="SORTIE FINALE")
+            
+        with col2:
+            st.download_button(
+                "📥 Exporter",
+                image_to_bytes(final_output, 'PNG'),
+                file_name=filename,
+                mime="image/png"
+            )
+            
+            st.markdown("**Analyse RGB:**")
+            rgb_mean = final_output.mean(axis=(0,1))
+            st.write(f"R: {rgb_mean[0]:.2f} | G: {rgb_mean[1]:.2f} | B: {rgb_mean[2]:.2f}")
+
+    except Exception as e:
+        st.error(f"Erreur de traitement : {str(e)}")
+        st.stop()
 
 else:
     st.info("⬅️ Chargez une image et sélectionnez des effets")
 
 # Footer
 st.markdown("---")
-st.markdown("**VMC Collective** - Synthèse Ultimate v8.0")
+st.markdown("**VMC Collective** - Synthèse Ultimate v10.0")
