@@ -15,10 +15,10 @@ st.set_page_config(
 )
 
 # Paramètres de performance
-MAX_IMAGE_SIZE =5000
+MAX_IMAGE_SIZE =4000
 MAX_FILE_SIZE_MB = 10
 QUALITY = 85
-PROCESSING_LIMIT = 6000
+PROCESSING_LIMIT = 4000
 
 # Style CSS amélioré
 st.markdown(f"""
