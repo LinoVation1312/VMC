@@ -116,51 +116,43 @@ def spectral_diffraction(img, frequency=30, angle=0, dispersion=0.3, brightness=
 
 def analog_tape_distortion(img, saturation=1.5, noise_level=0.4, 
                           wow=0.4, flutter=0.3, offset_mix=0.5, flutter_boost=2.0):
-    """
-    Nouveaux paramètres :
-    - offset_mix: Contrôle le décalage entre les deux couches déformées (0-1)
-    - flutter_boost: Amplification supplémentaire de l'effet flutter (1-5)
-    """
     rows, cols = img.shape[:2]
     t = np.linspace(0, 6*np.pi, cols)
     
-    # Génération de motifs complexes avec harmoniques
+    # Génération des motifs de modulation
     wow_mod = 0.15 * (np.sin(wow * t) + 0.5 * np.sin(2.7 * wow * t))
-    flutter_mod = flutter_boost * 0.2 * (np.sin(flutter * t * 50) + 
-                                       0.3 * np.cos(flutter * t * 27 * np.pi))
+    flutter_mod = flutter_boost * 0.2 * (np.sin(flutter * t * 50) + 0.3 * np.cos(flutter * t * 27 * np.pi)
     
-    # Création de deux couches déformées différentes
+    # Création des deux couches déformées
     warp_layer1 = np.zeros_like(img)
     warp_layer2 = np.zeros_like(img)
     
     for i in range(3):
-        # Première couche avec déformation principale
+        # Couche 1 avec déformation principale
+        shift1 = (int(rows * wow_mod[i%cols] * 2), int(cols * flutter_mod[i%cols] * 1.5)
         warp_layer1[..., i] = ndimage.shift(
             img[..., i],
-            (int(rows * wow_mod[i%cols] * 2), 
-            int(cols * flutter_mod[i%cols] * 1.5),
-            mode='reflect', order=3
+            shift1,
+            mode='reflect',
+            order=3
         )
         
-        # Deuxième couche avec décalage alternatif
+        # Couche 2 avec décalage alternatif
+        shift2 = (int(rows * wow_mod[i%cols] * 1.3), 
+                int(cols * flutter_mod[i%cols] * 2 * (-1 if i==1 else 1))
         warp_layer2[..., i] = ndimage.shift(
             img[..., i],
-            (int(rows * wow_mod[i%cols] * 1.3), 
-            int(cols * flutter_mod[i%cols] * 2 * (-1 if i==1 else 1)),
-            mode='mirror', order=2
+            shift2,
+            mode='mirror',
+            order=2
         )
     
-    # Mélange des deux couches déformées
+    # Mélange des couches et effets
     warped = warp_layer1 * (1 - offset_mix) + warp_layer2 * offset_mix
-    
-    # Compression non-linéaire accentuée
     compressed = np.tanh(img * saturation * 3) * 0.9
-    
-    # Bruit directionnel amélioré
     noise_profile = np.linspace(0.3, 1, cols)[None, :, None] * np.linspace(0.8, 1.2, rows)[:, None, None]
     noise = np.random.normal(0, noise_level**1.5, img.shape) * noise_profile
     
-    # Combinaison finale plus dynamique
     return np.clip(
         compressed * 0.6 + 
         warped * 0.8 + 
