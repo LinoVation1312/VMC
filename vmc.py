@@ -142,7 +142,7 @@ def vinyl_texture(img, wear=0.5, dust=0.3, scratches=0.2, groove_depth=0.15):
     y = np.linspace(-8, 8, rows)
     x = np.linspace(-8, 8, cols)
     xx, yy = np.meshgrid(x, y)
-    radius = np.sqrt(xx**2 + yy**2) * (1 + 0.1 * np.sin(yy * 30))  # Spirale serrée
+    radius = np.sqrt(xx**2 + yy**2) * (1 + 0.1 * np.sin(yy * 75))  # Spirale serrée
     
     # Micro-sillons (100 lignes/mm)
     grooves = (np.sin(radius * 150 + yy * 30) * 0.08 * groove_depth)*groove_depth**2
