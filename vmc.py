@@ -35,7 +35,9 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # Header VMC
-st.image("https://m.media-amazon.com/images/M/MV5BYmZlOTY2OGUtYWY2Yy00NGE0LTg5YmQtNmM2MmYxOWI2YmJiXkEyXkFqcGdeQXVyMTkxNjUyNQ@@._V1_.jpg", use_column_width=True)
+st.image("https://m.media-amazon.com/images/M/MV5BYmZlOTY2OGUtYWY2Yy00NGE0LTg5YmQtNmM2MmYxOWI2YmJiXkEyXkFqcGdeQXVyMTkxNjUyNQ@@._V1_.jpg", use_container_width=True)
+
+
 st.title("VMC Ultimate FX Processor")
 st.markdown("**Station de traitement visuel multi-effets** 🎛️🔥")
 
@@ -245,8 +247,9 @@ if uploaded_file and effects:
         
         col1, col2 = st.columns([3, 1])
         with col1:
-            st.image(final_output, use_column_width=True, caption="SORTIE FINALE")
-            
+
+            # Correction pour l'affichage du résultat
+            st.image(final_output, use_container_width=True, caption="SORTIE FINALE")
         with col2:
             st.download_button(
                 "📥 Exporter",
