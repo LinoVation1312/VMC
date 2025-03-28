@@ -221,6 +221,10 @@ def apply_sobel(image, mode='magnitude', boost=1.0, mix=1.0):
     # Conversion en luminance
     gray = 0.299 * image[..., 0] + 0.587 * image[..., 1] + 0.114 * image[..., 2]
     
+def apply_inversion(img, mix=1.0):
+    """Inversion des couleurs avec contrôle de mixage"""
+    inverted = 1.0 - img
+    return img * (1 - mix) + inverted * mix    
     # Calcul des gradients
     if mode == 'magnitude':
         h = ndimage.sobel(gray, axis=1)
@@ -251,7 +255,7 @@ with st.sidebar:
     
     filename_input = st.text_input("Nom du fichier", value="vmc_export")
     download_format = st.radio("Format de sortie", ['PNG', 'JPEG'], index=0)
-    # Dans la section multiselect :
+    
     effects = st.multiselect(
         "Effets à appliquer",
         [
@@ -273,86 +277,53 @@ with st.sidebar:
     with st.sidebar:
         params = {}
         
-        # Nouveaux effets
         if 'Diffraction Spectrale' in effects:
             st.subheader("Paramètres Diffraction")
             params['diffraction_freq'] = st.slider("Fréquence réseau", 10, 100, 30)
             params['diffraction_disp'] = st.slider("Dispersion RGB", 0.0, 0.3, 0.1)
-            st.image("exemples/diffraction_example.jpg", caption="Exemple de diffraction")
-    
+        
         if 'Distorsion Analogique' in effects:
             st.subheader("Paramètres Cassette")
             params['wow'] = st.slider("Fluctuation Wow", 0.0, 0.3, 0.1)
             params['flutter'] = st.slider("Fluctuation Flutter", 0.0, 0.2, 0.05)
-            st.markdown("*Simule l'effet magnétique des cassettes VHS*")
-    
+        
         if 'Texture Vinyle' in effects:
             st.subheader("Paramètres Vinyle")
             params['grooves'] = st.slider("Profondeur sillons", 0.0, 0.5, 0.1)
             params['dust'] = st.slider("Poussière", 0.0, 1.0, 0.3)
-            st.audio("samples/vinyl_noise.wav", caption="Bruit de surface")
-    
+        
         if 'Effet Holographique' in effects:
             st.subheader("Paramètres Hologramme")
             params['iridescence'] = st.slider("Iridescence", 0.0, 1.0, 0.5)
             params['parallax'] = st.slider("Parallaxe", 0.0, 0.3, 0.1)
-            st.markdown("**Astuce :** Utilisez une carte de profondeur pour plus de réalisme")
-    
-        # Effets existants
+
         if any('Sobel' in e for e in effects):
             st.subheader("Paramètres Sobel")
-            params['sobel_boost'] = st.slider(
-                "Intensité Sobel", 0.1, 5.0, 1.0, 0.1,
-                help="Amplification des contours détectés"
-            )
-            params['sobel_mix'] = st.slider(
-                "Mix Sobel", 0.0, 1.0, 1.0, 0.1,
-                help="Mélange avec l'image originale"
-            )
+            params['sobel_boost'] = st.slider("Intensité Sobel", 0.1, 5.0, 1.0, 0.1)
+            params['sobel_mix'] = st.slider("Mix Sobel", 0.0, 1.0, 1.0, 0.1)
         
         if 'Texture Analog' in effects:
             st.subheader("Paramètres Texture")
-            params['grunge_intensity'] = st.slider(
-                "Intensité Texture", 0.0, 1.0, 0.3,
-                help="Intensité du bruit analogique"
-            )
+            params['grunge_intensity'] = st.slider("Intensité Texture", 0.0, 1.0, 0.3)
         
         if 'Décalage Chromatique' in effects:
             st.subheader("Paramètres Chromatiques")
-            params['hue_shift'] = st.slider(
-                "Décalage Hue", 0.0, 1.0, 0.0,
-                help="Décalage de teinte colorimétrique"
-            )
+            params['hue_shift'] = st.slider("Décalage Hue", 0.0, 1.0, 0.0)
         
         if 'Distortion' in effects:
             st.subheader("Paramètres Distortion")
-            params['distortion_intensity'] = st.slider(
-                "Intensité Distortion", 0.0, 1.0, 0.5,
-                help="Force de la distorsion"
-            )
-            params['distortion_freq'] = st.slider(
-                "Fréquence Distortion", 1, 20, 8,
-                help="Nombre de vagues par axe"
-            )
-            params['distortion_mix'] = st.slider(
-                "Mix Distortion", 0.0, 1.0, 1.0,
-                help="Mélange avec l'image non déformée"
-            )
+            params['distortion_intensity'] = st.slider("Intensité Distortion", 0.0, 1.0, 0.5)
+            params['distortion_freq'] = st.slider("Fréquence Distortion", 1, 20, 8)
+            params['distortion_mix'] = st.slider("Mix Distortion", 0.0, 1.0, 1.0)
             
         if 'Inversion des couleurs' in effects:
             st.subheader("Paramètres Inversion")
-            params['inversion_mix'] = st.slider(
-                "Mix Inversion", 0.0, 1.0, 1.0,
-                help="Mélange avec l'image originale"
-            )
+            params['inversion_mix'] = st.slider("Mix Inversion", 0.0, 1.0, 1.0)
         
         st.subheader("Paramètres Globaux")
-        params['global_mix'] = st.slider(
-            "Mixage Global", 0.0, 1.0, 1.0, 0.1,
-            help="Mélange final avec l'image originale"
-        )
-    
-    # Traitement principal (section mise à jour)
+        params['global_mix'] = st.slider("Mixage Global", 0.0, 1.0, 1.0, 0.1)
+
+    # Traitement principal
     if uploaded_file and effects:
         try:
             with st.spinner("Chargement..."):
@@ -362,13 +333,13 @@ with st.sidebar:
                 if max(img.size) > MAX_IMAGE_SIZE:
                     img = optimize_image(img, MAX_IMAGE_SIZE)
                     st.warning(f"Redimensionné de {original_size} à {img.size}")
-    
+
                 img_array = np.array(img).astype(float)/255.0
                 
                 if max(img_array.shape[:2]) > PROCESSING_LIMIT:
                     st.error("Image trop grande pour le traitement")
                     st.stop()
-    
+
             progress_bar = st.progress(0)
             result = np.copy(img_array)
             total_effects = len(effects)
@@ -402,7 +373,6 @@ with st.sidebar:
                         mix=params['distortion_mix']
                     )
                 
-                # Nouveaux effets
                 elif effect == 'Diffraction Spectrale':
                     result = spectral_diffraction(
                         result,
@@ -433,7 +403,7 @@ with st.sidebar:
     
                 elif effect == 'Inversion des couleurs':
                     result = apply_inversion(result, params['inversion_mix'])
-    
+
             final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
             progress_bar.empty()
 
@@ -443,9 +413,7 @@ with st.sidebar:
         
             col1, col2 = st.columns([3, 1])
             with col1:
-    
-                # Correction pour l'affichage du résultat
-                st.image(final_output, use_container_width=True, caption="SORTIE FINALE")
+                st.image((final_output * 255).astype(np.uint8), use_container_width=True, caption="SORTIE FINALE")
             with col2:
                 st.download_button(
                     "📥 Exporter",
@@ -456,7 +424,7 @@ with st.sidebar:
                 
                 st.markdown("**Analyse RGB:**")
                 st.write(f"R: {final_output[...,0].mean():.2f} | G: {final_output[...,1].mean():.2f} | B: {final_output[...,2].mean():.2f}")
-    
+
         except Exception as e:
             st.error(f"Erreur: {str(e)}")
             st.stop()
