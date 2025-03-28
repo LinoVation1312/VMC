@@ -120,7 +120,7 @@ def analog_tape_distortion(img, saturation=1.2, noise_level=0.3, wow=0.3, flutte
     t = np.linspace(0, 8*np.pi, cols)
     
     # Modulation puissante en forme de "S"
-    wow_mod = 0.1 * (np.sin(wow * t)
+    wow_mod = 0.1 * (np.sin(wow * t))
     flutter_mod = 0.25 * (np.sin(flutter * t * 50) + 0.5 * np.cos(flutter * t * 27))
     
 
