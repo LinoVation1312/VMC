@@ -139,7 +139,7 @@ def analog_tape_distortion(img, saturation=1.5, noise_level=0.4,
         
         # Couche 2 avec décalage alternatif
         shift2 = (int(rows * wow_mod[i%cols] * 1.3), 
-                int(cols * flutter_mod[i%cols] * 2 * (-1 if i==1 else 1))
+                int(cols * flutter_mod[i%cols] * 2 * (-1 if i==1 else 1)))
         warp_layer2[..., i] = ndimage.shift(
             img[..., i],
             shift2,
