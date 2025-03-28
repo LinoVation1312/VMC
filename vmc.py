@@ -173,7 +173,7 @@ def holographic_effect(img, depth_map=None, iridescence=0.7, parallax=0.2):
     shifts = [
         (int(rows * parallax * 0.2), 
         int(rows * parallax * 0.3), 
-        int(rows * parallax * 0.4)
+        int(rows * parallax * 0.4))
     ]
     
     shifted = [
