@@ -95,7 +95,7 @@ def spectral_diffraction(img, frequency=30, angle=0, dispersion=0.3, brightness=
     
     # Motif d'interférence complexe
     grating = np.sin(frequency * xx) * np.cos(frequency * yy * 0.7)
-    grating += 0.5 * np.sin(0.7 * frequency * (xx * np.cos(np.radians(45)) + yy * np.sin(np.radians(45))))
+    grating += 0.5 * np.sin(0.7 * frequency) * (xx * np.cos(np.radians(45)) + yy * np.sin(np.radians(45))))
     
     # Décalages chromatiques différentiels
     shifts = [
@@ -121,7 +121,7 @@ def analog_tape_distortion(img, saturation=1.5, noise_level=0.4,
     
     # Génération des motifs de modulation
     wow_mod = 0.15 * (np.sin(wow * t) + 0.5 * np.sin(2.7 * wow * t))
-    flutter_mod = flutter_boost * 0.2 * (np.sin(flutter * t * 50) + 0.3 * np.cos(flutter * t * 27 * np.pi)
+    flutter_mod = flutter_boost * 0.2 * (np.sin(flutter * t * 50)) + 0.3 * np.cos(flutter * t * 27 * np.pi)
     
     # Création des deux couches déformées
     warp_layer1 = np.zeros_like(img)
