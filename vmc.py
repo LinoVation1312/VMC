@@ -435,9 +435,9 @@ with st.sidebar:
             final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
             progress_bar.empty()
 
-        # Génération du fichier
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{filename_input}_{timestamp}.{download_format.lower()}"
+            # Génération du fichier
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{filename_input}_{timestamp}.{download_format.lower()}"
         
         col1, col2 = st.columns([3, 1])
         with col1:
