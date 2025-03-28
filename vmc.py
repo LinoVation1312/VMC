@@ -95,7 +95,7 @@ def spectral_diffraction(img, frequency=30, angle=0, dispersion=0.3, brightness=
     
     # Motif d'interférence complexe
     grating = np.sin(frequency * xx) * np.cos(frequency * yy * 0.7)
-    grating += 0.5 * np.sin(0.7 * frequency) * (xx * np.cos(np.radians(45)) + yy * np.sin(np.radians(45))))
+    grating += 0.5 * np.sin(0.7 * frequency * (xx * np.cos(np.radians(45)) + yy * np.sin(np.radians(45))))
     
     # Décalages chromatiques différentiels
     shifts = [
