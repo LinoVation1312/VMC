@@ -86,7 +86,134 @@ def apply_distortion(img_rgb, intensity=0.5, frequency=10, mix=1.0):
         distorted_channels.append(channel_data * (1 - mix) + distorted * mix)
     
     return np.stack(distorted_channels, axis=-1)
+def spectral_diffraction(img, frequency=30, angle=0, dispersion=0.1, brightness=1.5):
+    """
+    Crée un effet de diffraction spectrale comme un réseau optique
+    - frequency: Nombre de lignes par image (10-100)
+    - angle: Orientation du motif en degrés (0-180)
+    - dispersion: Séparation des couleurs RGB (0-0.3)
+    - brightness: Amplification de la lumière (1-3)
+    """
+    rows, cols = img.shape[:2]
+    x = np.linspace(-np.pi, np.pi, cols)
+    y = np.linspace(-np.pi, np.pi, rows)
+    xx, yy = np.meshgrid(x, y)
+    
+    # Rotation du motif
+    theta = np.radians(angle)
+    xx_rot = xx * np.cos(theta) - yy * np.sin(theta)
+    
+    # Motif sinusoïdal principal
+    grating = np.sin(frequency * xx_rot)
+    
+    # Dispersion chromatique
+    rgb_shift = [grating * dispersion * i for i in [1, 0.7, 0.4]]
+    spectral = np.zeros_like(img)
+    
+    for i in range(3):
+        shifted = np.roll(grating, int(rows * rgb_shift[i]), axis=1)
+        spectral[..., i] = np.clip(shifted * brightness, 0, 1)
+    
+    return np.clip(img + spectral * brightness, 0, 1)
 
+def analog_tape_distortion(img, saturation=0.8, noise_level=0.2, wow=0.1, flutter=0.05):
+    """
+    Simulation de distorsion magnétique de cassette analogique
+    - saturation: Compression des couleurs (0-1)
+    - noise_level: Bruit de bande magnétique (0-0.5)
+    - wow: Fluctuation basse fréquence (0-0.3)
+    - flutter: Fluctuation haute fréquence (0-0.2)
+    """
+    hsv = mcolors.rgb_to_hsv(img)
+    rows, cols = img.shape[:2]
+    
+    # Modulation temporelle
+    t = np.linspace(0, 20*np.pi, cols)
+    wow_mod = np.sin(wow * t) * 0.1
+    flutter_mod = np.sin(flutter * t * 50) * 0.05
+    
+    # Déformation géométrique
+    warp = np.zeros_like(img)
+    for i in range(3):
+        warp[..., i] = ndimage.shift(img[..., i], 
+                                   (int(rows * wow_mod[i%cols]), 
+                                    int(cols * flutter_mod[i%cols])),
+                                   mode='wrap')
+    
+    # Compression non-linéaire
+    compressed = np.arcsinh(img * saturation * 3) / 3
+    
+    # Bruit magnétique directionnel
+    noise = np.random.normal(0, noise_level, img.shape) * np.linspace(0.5, 1, cols)
+    
+    return np.clip(compressed + warp * 0.3 + noise, 0, 1)
+
+def vinyl_texture(img, wear=0.5, dust=0.3, scratches=0.2, groove_depth=0.1):
+    """
+    Ajoute une texture de vinyle vintage avec :
+    - wear: Usure globale
+    - dust: Particules de poussière
+    - scratches: Rayures circulaires
+    - groove_depth: Profondeur des sillons
+    """
+    rows, cols = img.shape[:2]
+    result = img.copy()
+    
+    # Motif radial des sillons
+    y = np.linspace(-1, 1, rows)
+    x = np.linspace(-1, 1, cols)
+    xx, yy = np.meshgrid(x, y)
+    radius = np.sqrt(xx**2 + yy**2)
+    grooves = (np.sin(radius * 200 * groove_depth) * 0.1 * wear)
+    
+    # Rayures circulaires aléatoires
+    angles = np.random.rand(10) * 2 * np.pi
+    scratch_pattern = sum(np.sin(10*radius + angle) for angle in angles)
+    scratches = scratches * (scratch_pattern > 1.5).astype(float)
+    
+    # Poussière directionnelle
+    dust_mask = np.random.rand(rows, cols) < dust * wear
+    dust_effect = np.random.rand(*img.shape) * dust_mask[..., None]
+    
+    # Combinaison des effets
+    result = result * (1 - 0.3 * grooves[..., None]) 
+    result = np.clip(result + dust_effect + scratches[..., None], 0, 1)
+    
+    # Ajout d'une teinte sépia
+    result *= [1.0, 0.9, 0.8]  # Teinte vinyle
+    
+    return result
+
+def holographic_effect(img, depth_map=None, iridescence=0.5, parallax=0.1):
+    """
+    Effet holographique avec iridescence changeante
+    - depth_map: Carte de profondeur optionnelle
+    - iridescence: Force des couleurs spectrales (0-1)
+    - parallax: Déplacement des couleurs selon la vue (0-0.3)
+    """
+    if depth_map is None:
+        depth_map = np.sqrt(img[...,0]**2 + img[...,1]**2 + img[...,2]**2)
+    
+    rows, cols = img.shape[:2]
+    x = np.linspace(0, 2*np.pi, cols)
+    y = np.linspace(0, 2*np.pi, rows)
+    xx, yy = np.meshgrid(x, y)
+    
+    # Motif d'interférence
+    interference = np.sin(10*xx + 5*yy) * np.cos(5*xx - 10*yy)
+    
+    # Décalage chromatique dynamique
+    rgb_shift = [interference * parallax * i for i in [1, 1.3, 1.6]]
+    shifted = [ndimage.shift(img[...,i], (int(rows*s), int(cols*s)), mode='wrap') 
+               for i, s in enumerate(rgb_shift)]
+    
+    hologram = np.stack(shifted, axis=-1)
+    
+    # Iridescence
+    spectral_colors = np.sin(xx * yy * 50)[..., None] * np.array([0.3, 0.6, 1.0])
+    
+    return np.clip(img * (1 - iridescence) + hologram * depth_map[..., None] * iridescence + spectral_colors, 0, 1)
+    
 def apply_sobel(image, mode='magnitude', boost=1.0, mix=1.0):
     """Nouvelle implémentation Sobel avec grayscale"""
     # Conversion en luminance
@@ -122,7 +249,7 @@ with st.sidebar:
     
     filename_input = st.text_input("Nom du fichier", value="vmc_export")
     download_format = st.radio("Format de sortie", ['PNG', 'JPEG'], index=0)
-    
+    # Dans la section multiselect :
     effects = st.multiselect(
         "Effets à appliquer",
         [
@@ -132,10 +259,41 @@ with st.sidebar:
             'Texture Analog', 
             'Décalage Chromatique',
             'Distortion',
-            'Inversion des couleurs'
+            'Inversion des couleurs',
+            'Diffraction Spectrale',  # Nouveau
+            'Distorsion Analogique',  # Nouveau
+            'Texture Vinyle',        # Nouveau
+            'Effet Holographique'    # Nouveau
         ],
         default=['Sobel Magnitude']
     )
+
+# Ajoutez les paramètres dans le sidebar :
+with st.sidebar:
+    if 'Diffraction Spectrale' in effects:
+        st.subheader("Paramètres Diffraction")
+        freq = st.slider("Fréquence réseau", 10, 100, 30)
+        disp = st.slider("Dispersion RGB", 0.0, 0.3, 0.1)
+        st.image("exemples/diffraction_example.jpg", caption="Exemple de diffraction")
+
+    if 'Distorsion Analogique' in effects:
+        st.subheader("Paramètres Cassette")
+        wow = st.slider("Fluctuation Wow", 0.0, 0.3, 0.1)
+        flutter = st.slider("Fluctuation Flutter", 0.0, 0.2, 0.05)
+        st.markdown("*Simule l'effet magnétique des cassettes VHS*")
+
+    if 'Texture Vinyle' in effects:
+        st.subheader("Paramètres Vinyle")
+        grooves = st.slider("Profondeur sillons", 0.0, 0.5, 0.1)
+        dust = st.slider("Poussière", 0.0, 1.0, 0.3)
+        st.audio("samples/vinyl_noise.wav", caption="Bruit de surface")
+
+    if 'Effet Holographique' in effects:
+        st.subheader("Paramètres Hologramme")
+        iridescence = st.slider("Iridescence", 0.0, 1.0, 0.5)
+        parallax = st.slider("Parallaxe", 0.0, 0.3, 0.1)
+        st.markdown("**Astuce :** Utilisez une carte de profondeur pour plus de réalisme")
+        
     
     params = {}
     if any('Sobel' in e for e in effects):
