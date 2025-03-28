@@ -35,7 +35,7 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # Header VMC avec taille contrôlée
-col1, col2, col3 = st.columns([2, 2, 1])
+col1, col2, col3 = st.columns([0, 4, 2])
 with col2:
     st.image(
         "https://m.media-amazon.com/images/M/MV5BYmZlOTY2OGUtYWY2Yy00NGE0LTg5YmQtNmM2MmYxOWI2YmJiXkEyXkFqcGdeQXVyMTkxNjUyNQ@@._V1_.jpg",
