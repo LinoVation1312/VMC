@@ -250,53 +250,55 @@ with st.sidebar:
     filename_input = st.text_input("Nom du fichier", value="vmc_export")
     download_format = st.radio("Format de sortie", ['PNG', 'JPEG'], index=0)
     # Dans la section multiselect :
-    effects = st.multiselect(
-        "Effets à appliquer",
-        [
-            'Sobel Magnitude', 
-            'Sobel Horizontal', 
-            'Sobel Vertical', 
-            'Texture Analog', 
-            'Décalage Chromatique',
-            'Distortion',
-            'Inversion des couleurs',
-            'Diffraction Spectrale',  # Nouveau
-            'Distorsion Analogique',  # Nouveau
-            'Texture Vinyle',        # Nouveau
-            'Effet Holographique'    # Nouveau
-        ],
-        default=['Sobel Magnitude']
-    )
+effects = st.multiselect(
+    "Effets à appliquer",
+    [
+        'Sobel Magnitude', 
+        'Sobel Horizontal', 
+        'Sobel Vertical', 
+        'Texture Analog', 
+        'Décalage Chromatique',
+        'Distortion',
+        'Inversion des couleurs',
+        'Diffraction Spectrale',
+        'Distorsion Analogique', 
+        'Texture Vinyle',     
+        'Effet Holographique' 
+    ],
+    default=['Sobel Magnitude']
+)
 
-# Ajoutez les paramètres dans le sidebar :
 with st.sidebar:
+    params = {}
+    
+    # Nouveaux effets
     if 'Diffraction Spectrale' in effects:
         st.subheader("Paramètres Diffraction")
-        freq = st.slider("Fréquence réseau", 10, 100, 30)
-        disp = st.slider("Dispersion RGB", 0.0, 0.3, 0.1)
+        params['diffraction_freq'] = st.slider("Fréquence réseau", 10, 100, 30)
+        params['diffraction_disp'] = st.slider("Dispersion RGB", 0.0, 0.3, 0.1)
         st.image("exemples/diffraction_example.jpg", caption="Exemple de diffraction")
 
     if 'Distorsion Analogique' in effects:
         st.subheader("Paramètres Cassette")
-        wow = st.slider("Fluctuation Wow", 0.0, 0.3, 0.1)
-        flutter = st.slider("Fluctuation Flutter", 0.0, 0.2, 0.05)
+        params['wow'] = st.slider("Fluctuation Wow", 0.0, 0.3, 0.1)
+        params['flutter'] = st.slider("Fluctuation Flutter", 0.0, 0.2, 0.05)
         st.markdown("*Simule l'effet magnétique des cassettes VHS*")
 
     if 'Texture Vinyle' in effects:
         st.subheader("Paramètres Vinyle")
-        grooves = st.slider("Profondeur sillons", 0.0, 0.5, 0.1)
-        dust = st.slider("Poussière", 0.0, 1.0, 0.3)
+        params['grooves'] = st.slider("Profondeur sillons", 0.0, 0.5, 0.1)
+        params['dust'] = st.slider("Poussière", 0.0, 1.0, 0.3)
         st.audio("samples/vinyl_noise.wav", caption="Bruit de surface")
 
     if 'Effet Holographique' in effects:
         st.subheader("Paramètres Hologramme")
-        iridescence = st.slider("Iridescence", 0.0, 1.0, 0.5)
-        parallax = st.slider("Parallaxe", 0.0, 0.3, 0.1)
+        params['iridescence'] = st.slider("Iridescence", 0.0, 1.0, 0.5)
+        params['parallax'] = st.slider("Parallaxe", 0.0, 0.3, 0.1)
         st.markdown("**Astuce :** Utilisez une carte de profondeur pour plus de réalisme")
-        
-    
-    params = {}
+
+    # Effets existants
     if any('Sobel' in e for e in effects):
+        st.subheader("Paramètres Sobel")
         params['sobel_boost'] = st.slider(
             "Intensité Sobel", 0.1, 5.0, 1.0, 0.1,
             help="Amplification des contours détectés"
@@ -307,18 +309,21 @@ with st.sidebar:
         )
     
     if 'Texture Analog' in effects:
+        st.subheader("Paramètres Texture")
         params['grunge_intensity'] = st.slider(
             "Intensité Texture", 0.0, 1.0, 0.3,
             help="Intensité du bruit analogique"
         )
     
     if 'Décalage Chromatique' in effects:
+        st.subheader("Paramètres Chromatiques")
         params['hue_shift'] = st.slider(
             "Décalage Hue", 0.0, 1.0, 0.0,
             help="Décalage de teinte colorimétrique"
         )
     
     if 'Distortion' in effects:
+        st.subheader("Paramètres Distortion")
         params['distortion_intensity'] = st.slider(
             "Intensité Distortion", 0.0, 1.0, 0.5,
             help="Force de la distorsion"
@@ -333,17 +338,19 @@ with st.sidebar:
         )
         
     if 'Inversion des couleurs' in effects:
+        st.subheader("Paramètres Inversion")
         params['inversion_mix'] = st.slider(
             "Mix Inversion", 0.0, 1.0, 1.0,
             help="Mélange avec l'image originale"
         )
     
+    st.subheader("Paramètres Globaux")
     params['global_mix'] = st.slider(
         "Mixage Global", 0.0, 1.0, 1.0, 0.1,
         help="Mélange final avec l'image originale"
     )
 
-# Traitement principal
+# Traitement principal (section mise à jour)
 if uploaded_file and effects:
     try:
         with st.spinner("Chargement..."):
@@ -376,22 +383,54 @@ if uploaded_file and effects:
                     mix=params.get('sobel_mix', 1.0)
                 )
             
-            if effect == 'Texture Analog':
+            elif effect == 'Texture Analog':
                 noise = np.random.normal(0, params['grunge_intensity'], result.shape)
                 result = np.clip(result + noise, 0, 1)
             
-            if effect == 'Décalage Chromatique':
+            elif effect == 'Décalage Chromatique':
                 hsv = mcolors.rgb_to_hsv(result)
                 hsv[..., 0] = (hsv[..., 0] + params['hue_shift']) % 1.0
                 result = mcolors.hsv_to_rgb(hsv)
             
-            if effect == 'Distortion':
+            elif effect == 'Distortion':
                 result = apply_distortion(
                     result,
                     intensity=params['distortion_intensity'],
                     frequency=params['distortion_freq'],
                     mix=params['distortion_mix']
                 )
+            
+            # Nouveaux effets
+            elif effect == 'Diffraction Spectrale':
+                result = spectral_diffraction(
+                    result,
+                    frequency=params['diffraction_freq'],
+                    dispersion=params['diffraction_disp']
+                )
+            
+            elif effect == 'Distorsion Analogique':
+                result = analog_tape_distortion(
+                    result,
+                    wow=params['wow'],
+                    flutter=params['flutter']
+                )
+            
+            elif effect == 'Texture Vinyle':
+                result = vinyl_texture(
+                    result,
+                    groove_depth=params['grooves'],
+                    dust=params['dust']
+                )
+            
+            elif effect == 'Effet Holographique':
+                result = holographic_effect(
+                    result,
+                    iridescence=params['iridescence'],
+                    parallax=params['parallax']
+                )
+
+        final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
+        progress_bar.empty()
             
             if effect == 'Inversion des couleurs':
                 result = apply_inversion(result, params['inversion_mix'])
