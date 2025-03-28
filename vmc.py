@@ -120,7 +120,7 @@ def analog_tape_distortion(img, saturation=1.5, noise_level=0.4,
     t = np.linspace(0, 6*np.pi, cols)
     
     # Génération des motifs de modulation
-    wow_mod = 0.15 * (np.sin(wow * t) + 0.5 * np.sin(2.7 * wow * t))
+    wow_mod = 1.5 * (np.sin(wow * t) + 0.5 * np.sin(2.7 * wow * t))
     flutter_mod = flutter_boost * 0.2 * (np.sin(flutter * t * 50)) + 0.3 * np.cos(flutter * t * 27 * np.pi)
     
     # Création des deux couches déformées
@@ -137,19 +137,10 @@ def analog_tape_distortion(img, saturation=1.5, noise_level=0.4,
             order=3
         )
         
-        # Couche 2 avec décalage alternatif
-        shift2 = (int(rows * wow_mod[i%cols] * 1.3), 
-                int(cols * flutter_mod[i%cols] * 2 * (-1 if i==1 else 1)))
-        warp_layer2[..., i] = ndimage.shift(
-            img[..., i],
-            shift2,
-            mode='mirror',
-            order=2
-        )
     
     # Mélange des couches et effets
-    warped = warp_layer1 * (1 - offset_mix) + warp_layer2 * offset_mix
-    compressed = np.tanh(img * saturation * 3) * 0.9
+    warped = warp_layer1 * (1 - offset_mix) 
+    compressed = np.tanh(img * saturation * 3) * 3
     noise_profile = np.linspace(0.3, 1, cols)[None, :, None] * np.linspace(0.8, 1.2, rows)[:, None, None]
     noise = np.random.normal(0, noise_level**1.5, img.shape) * noise_profile
     
