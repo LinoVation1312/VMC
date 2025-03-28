@@ -86,6 +86,7 @@ def apply_distortion(img_rgb, intensity=0.5, frequency=10, mix=1.0):
     
     return np.stack(distorted_channels, axis=-1)
 
+# Correction pour la diffraction spectrale
 def spectral_diffraction(img, frequency=30, angle=0, dispersion=0.1, brightness=1.5):
     rows, cols = img.shape[:2]
     x = np.linspace(-np.pi, np.pi, cols)
@@ -97,15 +98,51 @@ def spectral_diffraction(img, frequency=30, angle=0, dispersion=0.1, brightness=
     
     grating = np.sin(frequency * xx_rot)
     
-    rgb_shift = [grating * dispersion * i for i in [1, 0.7, 0.4]]
+    # Modification clé : utilisation d'une valeur moyenne pour le décalage
+    rgb_shift = [dispersion * i for i in [1, 0.7, 0.4]]  # Conversion en scalaires
     spectral = np.zeros_like(img)
     
     for i in range(3):
-        shifted = np.roll(grating, int(rows * rgb_shift[i]), axis=1)
+        shift_amount = int(rows * rgb_shift[i] * np.mean(grating))
+        shifted = np.roll(grating, shift_amount, axis=1)
         spectral[..., i] = np.clip(shifted * brightness, 0, 1)
     
     return np.clip(img + spectral * brightness, 0, 1)
 
+# Correction pour la texture vinyle
+def vinyl_texture(img, wear=0.5, dust=0.3, scratches=0.2, groove_depth=0.1):
+    rows, cols = img.shape[:2]
+    result = img.copy()
+    
+    # Ajustement de l'échelle des coordonnées
+    y = np.linspace(-4, 4, rows)  # Augmentation de l'étendue
+    x = np.linspace(-4, 4, cols)
+    xx, yy = np.meshgrid(x, y)
+    radius = np.sqrt(xx**2 + yy**2)
+    
+    # Réglage fin des paramètres
+    grooves = (np.sin(radius * 50 * groove_depth) * 0.05 * wear)  # Fréquence réduite
+    grooves = np.clip(grooves, -0.2, 0.2)  # Limiter l'intensité
+    
+    # Rayures plus subtiles
+    angles = np.random.rand(20) * 2 * np.pi  # Plus de rayures
+    scratch_pattern = sum(0.3 * np.sin(15*radius + angle) for angle in angles)
+    scratches = scratches * (scratch_pattern > 0.8).astype(float)  # Seuil ajusté
+    
+    # Poussière plus réaliste
+    dust_mask = np.random.rand(rows, cols) < dust * 0.5  # Intensité réduite
+    dust_effect = np.random.rand(*img.shape) * dust_mask[..., None] * 0.3
+    
+    # Combinaison des effets
+    result = result * (1 - 0.15 * grooves[..., None])  # Mixage réduit
+    result = np.clip(result + dust_effect + scratches[..., None]*0.5, 0, 1)
+    
+    # Teinte sépia plus subtile
+    result *= [1.0, 0.95, 0.9]  # Réduction de l'effet jaune
+    
+    return result
+
+# Correction pour la distorsion analogique
 def analog_tape_distortion(img, saturation=0.8, noise_level=0.2, wow=0.1, flutter=0.05):
     hsv = mcolors.rgb_to_hsv(img)
     rows, cols = img.shape[:2]
@@ -116,59 +153,49 @@ def analog_tape_distortion(img, saturation=0.8, noise_level=0.2, wow=0.1, flutte
     
     warp = np.zeros_like(img)
     for i in range(3):
+        # Ajout d'une dimension pour la diffusion verticale
         warp[..., i] = ndimage.shift(img[..., i], 
-                                   (int(rows * wow_mod[i%cols]), 
-                                    int(cols * flutter_mod[i%cols])),
+                                   (int(rows * 0.01 * wow_mod[i%cols]), 
+                                   0,
                                    mode='wrap')
     
+    # Correction du format du bruit
+    noise = np.random.normal(0, noise_level, img.shape) * np.linspace(0.5, 1, cols)[None, :, None]  # Ajout de dimensions
+    
     compressed = np.arcsinh(img * saturation * 3) / 3
-    noise = np.random.normal(0, noise_level, img.shape) * np.linspace(0.5, 1, cols)
     
     return np.clip(compressed + warp * 0.3 + noise, 0, 1)
 
-def vinyl_texture(img, wear=0.5, dust=0.3, scratches=0.2, groove_depth=0.1):
-    rows, cols = img.shape[:2]
-    result = img.copy()
-    
-    y = np.linspace(-1, 1, rows)
-    x = np.linspace(-1, 1, cols)
-    xx, yy = np.meshgrid(x, y)
-    radius = np.sqrt(xx**2 + yy**2)
-    grooves = (np.sin(radius * 200 * groove_depth) * 0.1 * wear)
-    
-    angles = np.random.rand(10) * 2 * np.pi
-    scratch_pattern = sum(np.sin(10*radius + angle) for angle in angles)
-    scratches = scratches * (scratch_pattern > 1.5).astype(float)
-    
-    dust_mask = np.random.rand(rows, cols) < dust * wear
-    dust_effect = np.random.rand(*img.shape) * dust_mask[..., None]
-    
-    result = result * (1 - 0.3 * grooves[..., None]) 
-    result = np.clip(result + dust_effect + scratches[..., None], 0, 1)
-    result *= [1.0, 0.9, 0.8]
-    
-    return result
-
+# Correction pour l'effet holographique
 def holographic_effect(img, depth_map=None, iridescence=0.5, parallax=0.1):
     if depth_map is None:
         depth_map = np.sqrt(img[...,0]**2 + img[...,1]**2 + img[...,2]**2)
     
     rows, cols = img.shape[:2]
-    x = np.linspace(0, 2*np.pi, cols)
-    y = np.linspace(0, 2*np.pi, rows)
-    xx, yy = np.meshgrid(x, y)
     
-    interference = np.sin(10*xx + 5*yy) * np.cos(5*xx - 10*yy)
+    # Utilisation de décalages fixes basés sur parallax
+    shift_values = [
+        (int(rows * parallax * 0.1), 
+        int(rows * parallax * 0.13), 
+        int(rows * parallax * 0.16)
+    ]
     
-    rgb_shift = [interference * parallax * i for i in [1, 1.3, 1.6]]
-    shifted = [ndimage.shift(img[...,i], (int(rows*s), int(cols*s)), mode='wrap') 
-               for i, s in enumerate(rgb_shift)]
+    shifted = [
+        ndimage.shift(img[...,i], 
+        (shift_values[i], shift_values[i]), 
+        mode='wrap') 
+        for i in range(3)
+    ]
     
     hologram = np.stack(shifted, axis=-1)
-    spectral_colors = np.sin(xx * yy * 50)[..., None] * np.array([0.3, 0.6, 1.0])
+    spectral_colors = np.random.rand(*img.shape) * 0.3  # Effet plus subtil
     
-    return np.clip(img * (1 - iridescence) + hologram * depth_map[..., None] * iridescence + spectral_colors, 0, 1)
-
+    return np.clip(
+        img * (1 - iridescence) + 
+        hologram * depth_map[..., None] * iridescence * 0.7 + 
+        spectral_colors * iridescence, 
+        0, 1
+    )
 def apply_sobel(image, mode='magnitude', boost=1.0, mix=1.0):
     """Fonction corrigée avec retour de valeur"""
     gray = 0.299 * image[..., 0] + 0.587 * image[..., 1] + 0.114 * image[..., 2]
