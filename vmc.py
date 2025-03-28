@@ -120,18 +120,10 @@ def analog_tape_distortion(img, saturation=1.2, noise_level=0.3, wow=0.3, flutte
     t = np.linspace(0, 8*np.pi, cols)
     
     # Modulation puissante en forme de "S"
-    wow_mod = 0.1 * (np.sin(wow * t) + 0.3 * np.sin(3 * wow * t))
-    flutter_mod = 0.15 * (np.sin(flutter * t * 50) + 0.5 * np.cos(flutter * t * 27))
+    wow_mod = 0.1 * (np.sin(wow * t)
+    flutter_mod = 0.25 * (np.sin(flutter * t * 50) + 0.5 * np.cos(flutter * t * 27))
     
-    # Distorsion géométrique radicale
-    warp = np.zeros_like(img)
-    for i in range(3):
-        warp[..., i] = ndimage.shift(img[..., i], 
-                                   (int(rows * wow_mod[i%cols] * 2), 
-                                    int(cols * flutter_mod[i%cols] * 1.5)),
-                                   mode='reflect', order=3)
-    
-    # Compression extrême + bruit directionnel
+
     compressed = np.tanh(img * saturation * 2) * 0.8
     noise = np.random.normal(0, noise_level**2, img.shape) * np.linspace(0.3, 1, cols)[None, :, None]
     
