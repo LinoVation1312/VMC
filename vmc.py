@@ -35,7 +35,7 @@ st.markdown(f"""
     """, unsafe_allow_html=True)
 
 # Header VMC
-st.image("https://i.ibb.co/0jq6Y3N/vmc-logo.png", use_column_width=True)
+st.image("https://m.media-amazon.com/images/M/MV5BYmZlOTY2OGUtYWY2Yy00NGE0LTg5YmQtNmM2MmYxOWI2YmJiXkEyXkFqcGdeQXVyMTkxNjUyNQ@@._V1_.jpg", use_column_width=True)
 st.title("VMC Ultimate FX Processor")
 st.markdown("**Station de traitement visuel multi-effets** 🎛️🔥")
 
