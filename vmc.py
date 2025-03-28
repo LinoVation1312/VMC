@@ -142,10 +142,10 @@ def vinyl_texture(img, wear=0.5, dust=0.3, scratches=0.2, groove_depth=0.15):
     y = np.linspace(-8, 8, rows)
     x = np.linspace(-8, 8, cols)
     xx, yy = np.meshgrid(x, y)
-    radius = np.sqrt(xx**2 + yy**2) * (1 + 0.1 * np.sin(yy * 50))  # Spirale serrée
+    radius = np.sqrt(xx**2 + yy**2) * (1 + 0.1 * np.sin(yy * 30))  # Spirale serrée
     
     # Micro-sillons (100 lignes/mm)
-    grooves = (np.sin(radius * 150 + yy * 30) * 0.08 * groove_depth)
+    grooves = (np.sin(radius * 150 + yy * 30) * 0.08 * groove_depth)*groove_depth**2
     grooves += 0.03 * np.sin(50 * radius) * groove_depth
     
     # Rayures microscopiques aléatoires
@@ -156,7 +156,7 @@ def vinyl_texture(img, wear=0.5, dust=0.3, scratches=0.2, groove_depth=0.15):
     texture = np.random.rand(rows, cols) * 0.1 * wear
     result = np.clip(img * (0.9 + 0.1 * grooves[..., None]) + texture[..., None] + scratches[..., None], 0, 1)
     
-    return result * [0.95, 0.93, 0.91]  # Teinte neutre
+    return result * [0.91, 0.90, 0.85]  # Teinte neutre
 
 
 # Correction pour l'effet holographique
