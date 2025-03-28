@@ -153,19 +153,17 @@ def analog_tape_distortion(img, saturation=0.8, noise_level=0.2, wow=0.1, flutte
     
     warp = np.zeros_like(img)
     for i in range(3):
-        # Ajout d'une dimension pour la diffusion verticale
+        # Correction: Ajout de la parenthèse manquante pour le tuple de décalage
         warp[..., i] = ndimage.shift(img[..., i], 
-                                   (int(rows * 0.01 * wow_mod[i%cols]), 
-                                   0,
-                                   mode='wrap'))
+                                   (int(rows * 0.01 * wow_mod[i%cols]), 0),  # Tuple complet ici
+                                   mode='wrap')  # Parenthèse fermée correctement
     
     # Correction du format du bruit
-    noise = np.random.normal(0, noise_level, img.shape) * np.linspace(0.5, 1, cols)[None, :, None]  # Ajout de dimensions
+    noise = np.random.normal(0, noise_level, img.shape) * np.linspace(0.5, 1, cols)[None, :, None]
     
     compressed = np.arcsinh(img * saturation * 3) / 3
     
     return np.clip(compressed + warp * 0.3 + noise, 0, 1)
-
 # Correction pour l'effet holographique
 def holographic_effect(img, depth_map=None, iridescence=0.5, parallax=0.1):
     if depth_map is None:
