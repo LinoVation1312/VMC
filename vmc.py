@@ -15,10 +15,10 @@ st.set_page_config(
 )
 
 # Paramètres de performance
-MAX_IMAGE_SIZE = 2000
+MAX_IMAGE_SIZE =8000
 MAX_FILE_SIZE_MB = 10
 QUALITY = 85
-PROCESSING_LIMIT = 4000
+PROCESSING_LIMIT = 10000
 
 # Style CSS amélioré
 st.markdown(f"""
@@ -280,7 +280,7 @@ if uploaded_file and effects:
             original_size = img.size
             
             # Affichage original dans la zone principale
-            st.image(img, caption="Image originale", width=100)
+            st.image(img, caption="Image originale", width=200)
             
             if max(img.size) > MAX_IMAGE_SIZE:
                 img = optimize_image(img, MAX_IMAGE_SIZE)
