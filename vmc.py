@@ -418,6 +418,12 @@ with st.sidebar:
                     result = apply_inversion(result, params['inversion_mix'])
 
             final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
+            
+            # Vérification finale avant affichage
+            if final_output is None:  # AJOUT
+                st.error("Aucun résultat à afficher")
+                st.stop()
+
             progress_bar.empty()
 
             # Génération du fichier
@@ -426,7 +432,10 @@ with st.sidebar:
         
             col1, col2 = st.columns([3, 1])
             with col1:
-                st.image((final_output * 255).astype(np.uint8), use_container_width=True, caption="SORTIE FINALE")
+                # Conversion corrigée avec vérification de type
+                if final_output.dtype != np.uint8:  # AJOUT
+                    final_output = (final_output * 255).astype(np.uint8)
+                st.image(final_output, use_container_width=True, caption="SORTIE FINALE")
             with col2:
                 st.download_button(
                     "📥 Exporter",
