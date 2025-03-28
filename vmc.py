@@ -429,10 +429,7 @@ with st.sidebar:
                         parallax=params['parallax']
                     )
     
-            final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
-            progress_bar.empty()
-                
-            if effect == 'Inversion des couleurs':
+                elif effect == 'Inversion des couleurs':
                 result = apply_inversion(result, params['inversion_mix'])
     
             final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
