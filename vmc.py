@@ -330,11 +330,19 @@ with st.sidebar:
                 img = Image.open(uploaded_file).convert('RGB')
                 original_size = img.size
                 
+                # Affichage de l'image originale dès le chargement
+                st.image(img, caption="Image originale", use_column_width=True)  # AJOUT
+                
                 if max(img.size) > MAX_IMAGE_SIZE:
                     img = optimize_image(img, MAX_IMAGE_SIZE)
                     st.warning(f"Redimensionné de {original_size} à {img.size}")
 
                 img_array = np.array(img).astype(float)/255.0
+                
+                # Vérification de la validité du tableau
+                if img_array is None or img_array.size == 0:  # AJOUT
+                    st.error("Erreur de conversion de l'image")
+                    st.stop()
                 
                 if max(img_array.shape[:2]) > PROCESSING_LIMIT:
                     st.error("Image trop grande pour le traitement")
@@ -347,6 +355,11 @@ with st.sidebar:
             for idx, effect in enumerate(effects):
                 progress_bar.progress((idx + 1) / total_effects)
                 
+                # Gestion des None entre chaque effet
+                if result is None:  # AJOUT
+                    st.error("Erreur pendant le traitement des effets")
+                    st.stop()
+             
                 if 'Sobel' in effect:
                     mode = effect.split()[-1].lower()
                     result = apply_sobel(
