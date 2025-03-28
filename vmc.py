@@ -38,7 +38,6 @@ st.markdown(f"""
 st.image(
     "https://m.media-amazon.com/images/M/MV5BYmZlOTY2OGUtYWY2Yy00NGE0LTg5YmQtNmM2MmYxOWI2YmJiXkEyXkFqcGdeQXVyMTkxNjUyNQ@@._V1_.jpg",
     width=500,  # Largeur fixe en pixels
-    use_container_width=False  # Désactive l'ajustement automatique
 )
 
 st.title("VMC Ultimate FX Processor")
