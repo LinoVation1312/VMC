@@ -439,29 +439,29 @@ with st.sidebar:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             filename = f"{filename_input}_{timestamp}.{download_format.lower()}"
         
-        col1, col2 = st.columns([3, 1])
-        with col1:
-
-            # Correction pour l'affichage du résultat
-            st.image(final_output, use_container_width=True, caption="SORTIE FINALE")
-        with col2:
-            st.download_button(
-                "📥 Exporter",
-                image_to_bytes(final_output, download_format, QUALITY),
-                file_name=filename,
-                mime=f"image/{download_format.lower()}"
-            )
-            
-            st.markdown("**Analyse RGB:**")
-            st.write(f"R: {final_output[...,0].mean():.2f} | G: {final_output[...,1].mean():.2f} | B: {final_output[...,2].mean():.2f}")
-
-    except Exception as e:
-        st.error(f"Erreur: {str(e)}")
-        st.stop()
-
-else:
-    st.info("⬅️ Chargez une image et sélectionnez des effets")
-
-# Footer
-st.markdown("---")
-st.markdown("**VMC Collective** - Synthèse Ultimate v11.0")
+            col1, col2 = st.columns([3, 1])
+            with col1:
+    
+                # Correction pour l'affichage du résultat
+                st.image(final_output, use_container_width=True, caption="SORTIE FINALE")
+            with col2:
+                st.download_button(
+                    "📥 Exporter",
+                    image_to_bytes(final_output, download_format, QUALITY),
+                    file_name=filename,
+                    mime=f"image/{download_format.lower()}"
+                )
+                
+                st.markdown("**Analyse RGB:**")
+                st.write(f"R: {final_output[...,0].mean():.2f} | G: {final_output[...,1].mean():.2f} | B: {final_output[...,2].mean():.2f}")
+    
+        except Exception as e:
+            st.error(f"Erreur: {str(e)}")
+            st.stop()
+    
+    else:
+        st.info("⬅️ Chargez une image et sélectionnez des effets")
+    
+    # Footer
+    st.markdown("---")
+    st.markdown("**VMC Collective** - Synthèse Ultimate v11.0")
