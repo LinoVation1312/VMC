@@ -135,7 +135,7 @@ def analog_tape_distortion(img, saturation=1.5, noise_level=0.4,
             shift1,
             mode='reflect',
             order=3
-        )
+        ))
         
         # Couche 2 avec décalage alternatif
         shift2 = (int(rows * wow_mod[i%cols] * 1.3), 
