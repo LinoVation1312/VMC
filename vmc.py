@@ -87,111 +87,113 @@ def apply_distortion(img_rgb, intensity=0.5, frequency=10, mix=1.0):
     return np.stack(distorted_channels, axis=-1)
 
 # Correction pour la diffraction spectrale
-def spectral_diffraction(img, frequency=30, angle=0, dispersion=0.1, brightness=1.5):
+def spectral_diffraction(img, frequency=30, angle=0, dispersion=0.3, brightness=2.0):
     rows, cols = img.shape[:2]
-    x = np.linspace(-np.pi, np.pi, cols)
-    y = np.linspace(-np.pi, np.pi, rows)
+    x = np.linspace(-np.pi*4, np.pi*4, cols)
+    y = np.linspace(-np.pi*4, np.pi*4, rows)
     xx, yy = np.meshgrid(x, y)
     
-    theta = np.radians(angle)
-    xx_rot = xx * np.cos(theta) - yy * np.sin(theta)
+    # Motif d'interférence complexe
+    grating = np.sin(frequency * xx) * np.cos(frequency * yy * 0.7)
+    grating += 0.5 * np.sin(0.7 * frequency * (xx * np.cos(np.radians(45)) + yy * np.sin(np.radians(45))))
     
-    grating = np.sin(frequency * xx_rot)
+    # Décalages chromatiques différentiels
+    shifts = [
+        (int(rows * dispersion * 0.8), int(cols * dispersion * 0.2)),
+        (int(rows * dispersion * 0.4), int(cols * dispersion * 0.6)),
+        (int(rows * dispersion * 0.1), int(cols * dispersion * 0.9))
+    ]
     
-    # Modification clé : utilisation d'une valeur moyenne pour le décalage
-    rgb_shift = [dispersion * i for i in [1, 0.7, 0.4]]  # Conversion en scalaires
     spectral = np.zeros_like(img)
-    
     for i in range(3):
-        shift_amount = int(rows * rgb_shift[i] * np.mean(grating))
-        shifted = np.roll(grating, shift_amount, axis=1)
-        spectral[..., i] = np.clip(shifted * brightness, 0, 1)
+        shifted = np.roll(grating, shifts[i][0], axis=0)
+        shifted = np.roll(shifted, shifts[i][1], axis=1)
+        spectral[..., i] = np.clip(np.abs(shifted) * brightness * (i+1)/3, 0, 1)
     
-    return np.clip(img + spectral * brightness, 0, 1)
+    # Combinaison non linéaire
+    return np.clip(img * 0.7 + spectral * 1.3 - 0.3, 0, 1)
+
 
 # Correction pour la texture vinyle
-def vinyl_texture(img, wear=0.5, dust=0.3, scratches=0.2, groove_depth=0.1):
+def analog_tape_distortion(img, saturation=1.2, noise_level=0.3, wow=0.3, flutter=0.2):
     rows, cols = img.shape[:2]
-    result = img.copy()
+    t = np.linspace(0, 8*np.pi, cols)
     
-    # Ajustement de l'échelle des coordonnées
-    y = np.linspace(-4, 4, rows)  # Augmentation de l'étendue
-    x = np.linspace(-4, 4, cols)
-    xx, yy = np.meshgrid(x, y)
-    radius = np.sqrt(xx**2 + yy**2)
+    # Modulation puissante en forme de "S"
+    wow_mod = 0.1 * (np.sin(wow * t) + 0.3 * np.sin(3 * wow * t))
+    flutter_mod = 0.15 * (np.sin(flutter * t * 50) + 0.5 * np.cos(flutter * t * 27))
     
-    # Réglage fin des paramètres
-    grooves = (np.sin(radius * 50 * groove_depth) * 0.05 * wear)  # Fréquence réduite
-    grooves = np.clip(grooves, -0.2, 0.2)  # Limiter l'intensité
-    
-    # Rayures plus subtiles
-    angles = np.random.rand(20) * 2 * np.pi  # Plus de rayures
-    scratch_pattern = sum(0.3 * np.sin(15*radius + angle) for angle in angles)
-    scratches = scratches * (scratch_pattern > 0.8).astype(float)  # Seuil ajusté
-    
-    # Poussière plus réaliste
-    dust_mask = np.random.rand(rows, cols) < dust * 0.5  # Intensité réduite
-    dust_effect = np.random.rand(*img.shape) * dust_mask[..., None] * 0.3
-    
-    # Combinaison des effets
-    result = result * (1 - 0.15 * grooves[..., None])  # Mixage réduit
-    result = np.clip(result + dust_effect + scratches[..., None]*0.5, 0, 1)
-    
-    # Teinte sépia plus subtile
-    result *= [1.0, 0.95, 0.9]  # Réduction de l'effet jaune
-    
-    return result
-
-# Correction pour la distorsion analogique
-def analog_tape_distortion(img, saturation=0.8, noise_level=0.2, wow=0.1, flutter=0.05):
-    hsv = mcolors.rgb_to_hsv(img)
-    rows, cols = img.shape[:2]
-    
-    t = np.linspace(0, 20*np.pi, cols)
-    wow_mod = np.sin(wow * t) * 0.1
-    flutter_mod = np.sin(flutter * t * 50) * 0.05
-    
+    # Distorsion géométrique radicale
     warp = np.zeros_like(img)
     for i in range(3):
-        # Correction: Ajout de la parenthèse manquante pour le tuple de décalage
         warp[..., i] = ndimage.shift(img[..., i], 
-                                   (int(rows * 0.01 * wow_mod[i%cols]), 0),  # Tuple complet ici
-                                   mode='wrap')  # Parenthèse fermée correctement
+                                   (int(rows * wow_mod[i%cols] * 2), 
+                                    int(cols * flutter_mod[i%cols] * 1.5)),
+                                   mode='reflect', order=3)
     
-    # Correction du format du bruit
-    noise = np.random.normal(0, noise_level, img.shape) * np.linspace(0.5, 1, cols)[None, :, None]
+    # Compression extrême + bruit directionnel
+    compressed = np.tanh(img * saturation * 2) * 0.8
+    noise = np.random.normal(0, noise_level**2, img.shape) * np.linspace(0.3, 1, cols)[None, :, None]
     
-    compressed = np.arcsinh(img * saturation * 3) / 3
+    return np.clip(compressed * 0.7 + warp * 0.5 + noise, 0, 1)
+
+def vinyl_texture(img, wear=0.5, dust=0.3, scratches=0.2, groove_depth=0.15):
+    rows, cols = img.shape[:2]
+    y = np.linspace(-8, 8, rows)
+    x = np.linspace(-8, 8, cols)
+    xx, yy = np.meshgrid(x, y)
+    radius = np.sqrt(xx**2 + yy**2) * (1 + 0.1 * np.sin(yy * 50))  # Spirale serrée
     
-    return np.clip(compressed + warp * 0.3 + noise, 0, 1)
+    # Micro-sillons (100 lignes/mm)
+    grooves = (np.sin(radius * 150 + yy * 30) * 0.08 * groove_depth
+    grooves += 0.03 * np.sin(50 * radius) * groove_depth
+    
+    # Rayures microscopiques aléatoires
+    scratch_pattern = sum(0.2 * np.sin(100*radius + np.random.rand()*10) for _ in range(20))
+    scratches = (scratch_pattern > 0.9).astype(float) * scratches
+    
+    # Texture de surface
+    texture = np.random.rand(rows, cols) * 0.1 * wear
+    result = np.clip(img * (0.9 + 0.1 * grooves[..., None]) + texture[..., None] + scratches[..., None], 0, 1)
+    
+    return result * [0.95, 0.93, 0.91]  # Teinte neutre
+
+
 # Correction pour l'effet holographique
-def holographic_effect(img, depth_map=None, iridescence=0.5, parallax=0.1):
-    if depth_map is None:
-        depth_map = np.sqrt(img[...,0]**2 + img[...,1]**2 + img[...,2]**2)
-    
+def holographic_effect(img, depth_map=None, iridescence=0.7, parallax=0.2):
     rows, cols = img.shape[:2]
     
-    # Utilisation de décalages fixes basés sur parallax
-    shift_values = [
-        (int(rows * parallax * 0.1), 
-        int(rows * parallax * 0.13), 
-        int(rows * parallax * 0.16))
+    # Génération de franges d'interférence
+    x = np.linspace(0, 6*np.pi, cols)
+    y = np.linspace(0, 6*np.pi, rows)
+    xx, yy = np.meshgrid(x, y)
+    interference = np.sin(8*xx) * np.cos(6*yy) + 0.5*np.sin(3*(xx + yy))
+    
+    # Décalages chromatiques dynamiques
+    shifts = [
+        (int(rows * parallax * 0.2), 
+        int(rows * parallax * 0.3), 
+        int(rows * parallax * 0.4)
     ]
     
     shifted = [
-        ndimage.shift(img[...,i], 
-        (shift_values[i], shift_values[i]), 
-        mode='wrap') 
+        ndimage.shift(img[...,i], (shifts[i], shifts[i]), mode='wrap')
         for i in range(3)
     ]
-    
     hologram = np.stack(shifted, axis=-1)
-    spectral_colors = np.random.rand(*img.shape) * 0.3  # Effet plus subtil
+    
+    # Couleurs spectrales directionnelles
+    angle_map = np.arctan2(yy - rows/2, xx - cols/2)
+    spectral = np.stack([
+        np.cos(angle_map * 3),
+        np.sin(angle_map * 3 + np.pi/3),
+        np.cos(angle_map * 3 - np.pi/3)
+    ], axis=-1) * 0.4
     
     return np.clip(
         img * (1 - iridescence) + 
-        hologram * depth_map[..., None] * iridescence * 0.7 + 
-        spectral_colors * iridescence, 
+        hologram * iridescence * 0.8 + 
+        spectral * iridescence * 0.6, 
         0, 1
     )
 def apply_sobel(image, mode='magnitude', boost=1.0, mix=1.0):
