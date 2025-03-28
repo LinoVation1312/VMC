@@ -157,7 +157,7 @@ def analog_tape_distortion(img, saturation=0.8, noise_level=0.2, wow=0.1, flutte
         warp[..., i] = ndimage.shift(img[..., i], 
                                    (int(rows * 0.01 * wow_mod[i%cols]), 
                                    0,
-                                   mode='wrap')
+                                   mode='wrap'))
     
     # Correction du format du bruit
     noise = np.random.normal(0, noise_level, img.shape) * np.linspace(0.5, 1, cols)[None, :, None]  # Ajout de dimensions
