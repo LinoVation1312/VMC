@@ -280,7 +280,7 @@ if uploaded_file and effects:
             original_size = img.size
             
             # Affichage original dans la zone principale
-            st.image(img, caption="Image originale", use_column_width=True)
+            st.image(img, caption="Image originale", width=100, use_container_width=True)
             
             if max(img.size) > MAX_IMAGE_SIZE:
                 img = optimize_image(img, MAX_IMAGE_SIZE)
