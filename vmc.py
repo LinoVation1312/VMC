@@ -127,7 +127,7 @@ def analog_tape_distortion(img, saturation=1.2, noise_level=0.3, wow=0.3, flutte
     compressed = np.tanh(img * saturation * 2) * 0.8
     noise = np.random.normal(0, noise_level**2, img.shape) * np.linspace(0.3, 1, cols)[None, :, None]
     
-    return np.clip(compressed * 0.7 + warp * 0.5 + noise, 0, 1)
+    return np.clip(compressed * 0.7 + noise, 0, 1)
 
 def vinyl_texture(img, wear=0.5, dust=0.3, scratches=0.2, groove_depth=0.15):
     rows, cols = img.shape[:2]
