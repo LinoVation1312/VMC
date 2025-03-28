@@ -288,6 +288,7 @@ with st.sidebar:
         params['flutter'] = st.slider("Fluctuation Flutter", 0.0, 1.0, 0.3, 0.05)
         params['offset_mix'] = st.slider("Décalage couches", 0.0, 1.0, 0.5, 0.1)
         params['flutter_boost'] = st.slider("Boost Flutter", 1.0, 3.0, 2.0, 0.5)
+         params['tape_saturation'] = st.slider("Saturation", 0.0, 2.0, 1.0, 0.1)
         
     if 'Texture Vinyle' in effects:
         st.subheader("Paramètres Vinyle")
