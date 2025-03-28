@@ -15,7 +15,7 @@ st.set_page_config(
 )
 
 # Paramètres de performance
-MAX_IMAGE_SIZE =4000
+MAX_IMAGE_SIZE =2000
 MAX_FILE_SIZE_MB = 10
 QUALITY = 85
 PROCESSING_LIMIT = 4000
