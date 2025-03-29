@@ -278,7 +278,7 @@ with st.sidebar:
             'Distorsion Analogique', 
             'Texture Vinyle',     
             'Effet Holographique' ,
-            'Néon'
+            'Effet Néon'
         ],
         default=['Sobel Magnitude']
     )
