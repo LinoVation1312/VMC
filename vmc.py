@@ -218,6 +218,35 @@ def apply_inversion(img, mix=1.0):
     """Fonction séparée corrigée"""
     inverted = 1.0 - img
     return img * (1 - mix) + inverted * mix
+def neon_effect(img, hue=0.8, intensity=0.7, mix=0.5):
+    """
+    Effet néon sur les contours
+    - hue: Teinte du néon (0-1)
+    - intensity: Force de l'effet (0-2)
+    - mix: Mélange avec l'original (0-1)
+    """
+    # Détection des contours avec filtre Sobel
+    gray = 0.299 * img[..., 0] + 0.587 * img[..., 1] + 0.114 * img[..., 2]
+    h = ndimage.sobel(gray, axis=1)
+    v = ndimage.sobel(gray, axis=0)
+    edges = np.sqrt(h**2 + v**2)
+    
+    # Création du glow néon
+    glow = ndimage.gaussian_filter(edges**3, sigma=2) * intensity * 3
+    glow = np.clip(glow, 0, 1)
+    
+    # Conversion en couleur HSV
+    hsv = np.zeros_like(img)
+    hsv[..., 0] = hue  # Teinte
+    hsv[..., 1] = 1.0  # Saturation max
+    hsv[..., 2] = glow  # Luminosité basée sur les contours
+    
+    # Conversion HSV vers RGB
+    neon_rgb = mcolors.hsv_to_rgb(hsv)
+    
+    # Mélange final
+    return np.clip(img * (1 - mix) + neon_rgb * mix, 0, 1)
+
 
 # Contrôles latéraux
 with st.sidebar:
@@ -249,12 +278,21 @@ with st.sidebar:
             'Distorsion Analogique', 
             'Texture Vinyle',     
             'Effet Holographique' 
+            'Néon'
         ],
         default=['Sobel Magnitude']
     )
     
     params = {}
     
+      if 'Effet Néon' in effects:
+        st.subheader("Paramètres Néon")
+        params['neon_hue'] = st.slider("Teinte Néon", 0.0, 1.0, 0.8, 0.01,
+                                      help="0=rouge, 0.33=vert, 0.66=bleu")
+        params['neon_intensity'] = st.slider("Intensité Lumière", 0.0, 2.0, 0.7, 0.1)
+        params['neon_mix'] = st.slider("Mix Néon/Original", 0.0, 1.0, 0.5, 0.05)
+
+      
     if 'Diffraction Spectrale' in effects:
         st.subheader("Paramètres Diffraction")
         params['diffraction_freq'] = st.slider("Fréquence réseau", 10, 100, 30)
@@ -380,6 +418,14 @@ if uploaded_file and effects:
                 )
             elif effect == 'Inversion des couleurs':
                 result = apply_inversion(result, params['inversion_mix'])
+
+            elif effect == 'Effet Néon':
+        result = neon_effect(
+            result,
+            hue=params['neon_hue'],
+            intensity=params['neon_intensity'],
+            mix=params['neon_mix']
+        )
 
         final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
         
