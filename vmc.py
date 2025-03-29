@@ -114,43 +114,32 @@ def spectral_diffraction(img, frequency=30, angle=0, dispersion=0.3, brightness=
     return np.clip(img * 0.7 + spectral * 1.3 - 0.3, 0, 1)
 
 
-def analog_tape_distortion(img, saturation=1.5, noise_level=0.4, 
-                          wow=0.4, flutter=0.3, offset_mix=0.5, flutter_boost=2.0):
+def analog_tape_distortion(img, flutter=0.3, flutter_boost=2.0, mix=0.1):
     rows, cols = img.shape[:2]
-    t = np.linspace(0, 6*np.pi, cols)
+    t = np.linspace(0, 6 * np.pi, cols)
     
-    # Génération des motifs de modulation
-    wow_mod = 1.5 * (np.sin(wow * t) + 0.5 * np.sin(2.7 * wow * t))
-    flutter_mod = flutter_boost * 0.2 * (np.sin(flutter * t * 50)) + 0.3 * np.cos(flutter * t * 27 * np.pi)
+    # Génération du motif de flutter
+    flutter_mod = mix * flutter_boost * 0.2 * (
+        np.sin(flutter * t * 50) + 
+        0.3 * np.cos(flutter * t * 27 * np.pi)
+    )
     
-    # Création des deux couches déformées
-    warp_layer1 = np.zeros_like(img)
-    warp_layer2 = np.zeros_like(img)
+    # Initialisation de l'image déformée
+    warped = np.zeros_like(img)
     
     for i in range(3):
-        # Couche 1 avec déformation principale
-        shift1 = (int(rows * wow_mod[i%cols] * 2), int(cols * flutter_mod[i%cols] * 1.5))
-        warp_layer1[..., i] = ndimage.shift(
+        # Décalage horizontal uniquement
+        horizontal_shift = (0, int(cols * flutter_mod[i % cols]))
+        
+        warped[..., i] = ndimage.shift(
             img[..., i],
-            shift1,
+            horizontal_shift,
             mode='reflect',
             order=3
         )
-        
     
-    # Mélange des couches et effets
-    warped = warp_layer1 * (1 - offset_mix) 
-    compressed = np.tanh(img * saturation * 3) * 3
-    noise_profile = np.linspace(0.3, 1, cols)[None, :, None] * np.linspace(0.8, 1.2, rows)[:, None, None]
-    noise = np.random.normal(0, noise_level**1.5, img.shape) * noise_profile
-    
-    return np.clip(
-        compressed * 0.6 + 
-        warped * 0.8 + 
-        noise * 1.2 -
-        0.2 * (compressed * warped),
-        0, 1
-    )
+    # Mélange progressif avec l'original
+    return np.clip(img * (1 - mix) + warped * mix, 0, 1)
 
 def vinyl_texture(img, wear=0.5, dust=0.3, scratches=0.2, groove_depth=0.15):
     rows, cols = img.shape[:2]
@@ -274,12 +263,10 @@ with st.sidebar:
         params['diffraction_disp'] = st.slider("Dispersion RGB", 0.0, 0.3, 0.1)
     
     if 'Distorsion Analogique' in effects:
-        st.subheader("Paramètres Cassette")
-        params['wow'] = st.slider("Fluctuation Wow", 0.0, 1.0, 0.4, 0.05)
-        params['flutter'] = st.slider("Fluctuation Flutter", 0.0, 1.0, 0.3, 0.05)
-        params['offset_mix'] = st.slider("Décalage couches", 0.0, 1.0, 0.5, 0.1)
-        params['flutter_boost'] = st.slider("Boost Flutter", 1.0, 3.0, 2.0, 0.5)
-        params['tape_saturation'] = st.slider("Saturation", 0.0, 2.0, 1.0, 0.1)
+        st.subheader("Paramètres Flutter")
+        params['flutter'] = st.slider("Intensité Flutter", 0.0, 1.0, 0.3, 0.05)
+        params['flutter_boost'] = st.slider("Boost Fréquence", 1.0, 5.0, 2.0, 0.5)
+        params['flutter_mix'] = st.slider("Mixage", 0.0, 1.0, 0.1, 0.1)
         
     if 'Texture Vinyle' in effects:
         st.subheader("Paramètres Vinyle")
