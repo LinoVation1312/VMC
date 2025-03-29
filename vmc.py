@@ -162,44 +162,42 @@ def vinyl_texture(img, wear=0.5, dust=0.3, scratches=0.2, groove_depth=0.15):
     
     return result * [0.91, 0.90, 0.85]  # Teinte neutre
 
-
-# Correction pour l'effet holographique
-def holographic_effect(img, depth_map=None, iridescence=0.7, parallax=0.2):
+def holographic_effect(img, depth_map=None, iridescence=0.5, parallax=0.1):
+    if depth_map is None:
+        depth_map = np.sqrt(img[...,0]**2 + img[...,1]**2 + img[...,2]**2)
+    
     rows, cols = img.shape[:2]
-    
-    # Génération de franges d'interférence
-    x = np.linspace(0, 6*np.pi, cols)
-    y = np.linspace(0, 6*np.pi, rows)
+    x = np.linspace(0, 2 * np.pi, cols)
+    y = np.linspace(0, 2 * np.pi, rows)
     xx, yy = np.meshgrid(x, y)
-    interference = np.sin(8*xx) * np.cos(6*yy) + 0.5*np.sin(3*(xx + yy))
     
-    # Décalages chromatiques dynamiques
-    shifts = [
-        (int(rows * parallax * 0.2), 
-        int(rows * parallax * 0.3), 
-        int(rows * parallax * 0.4))
+    # Correction de l'opérateur unaire
+    interference = np.sin(10 * xx + 5 * yy) * np.cos(5 * xx - 10 * yy)
+    
+    # Déclaration correcte des décalages
+    shift_values = [
+        (int(rows * parallax * 0.1),  # Conversion en entiers
+        int(rows * parallax * 0.13),
+        int(rows * parallax * 0.16)
     ]
     
     shifted = [
-        ndimage.shift(img[...,i], (shifts[i], shifts[i]), mode='wrap')
-        for i in range(3)
-    ]
+        ndimage.shift(img[...,i], 
+        (shift_values[i], shift_values[i]),  # Tuple correctement formé
+        mode='wrap'
+    ) for i in range(3)]
+    
     hologram = np.stack(shifted, axis=-1)
+    spectral_colors = np.sin(xx * yy * 50)[..., None] * np.array([0.3, 0.6, 1.0])
     
-    # Couleurs spectrales directionnelles
-    angle_map = np.arctan2(yy - rows/2, xx - cols/2)
-    spectral = np.stack([
-        np.cos(angle_map * 3),
-        np.sin(angle_map * 3 + np.pi/3),
-        np.cos(angle_map * 3 - np.pi/3)
-    ], axis=-1) * 0.4
-    
+    # Formule finale corrigée
     return np.clip(
         img * (1 - iridescence) + 
-        hologram * iridescence * 0.8 + 
-        spectral * iridescence * 0.6, 
+        hologram * depth_map[..., None] * iridescence * 0.7 +  # Parenthèse corrigée
+        spectral_colors * iridescence,
         0, 1
     )
+    
 def apply_sobel(image, mode='magnitude', boost=1.0, mix=1.0):
     """Fonction corrigée avec retour de valeur"""
     gray = 0.299 * image[..., 0] + 0.587 * image[..., 1] + 0.114 * image[..., 2]
