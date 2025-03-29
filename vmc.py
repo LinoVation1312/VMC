@@ -364,7 +364,9 @@ if uploaded_file and effects:
             elif effect == 'Distorsion Analogique':
                 result = analog_tape_distortion(
                     result,
-                    flutter=params['flutter']
+                    flutter=params['flutter'],
+                    flutter_boost=params.get('flutter_boost', 2.0),  # Avec valeur par défaut
+                    mix=params.get('flutter_mix', 0.1)  # Récupération du paramètre mix
                 )
             elif effect == 'Texture Vinyle':
                 result = vinyl_texture(
