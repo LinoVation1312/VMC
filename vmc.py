@@ -420,12 +420,12 @@ if uploaded_file and effects:
                 result = apply_inversion(result, params['inversion_mix'])
 
             elif effect == 'Effet Néon':
-        result = neon_effect(
-            result,
-            hue=params['neon_hue'],
-            intensity=params['neon_intensity'],
-            mix=params['neon_mix']
-        )
+                result = neon_effect(
+                    result,
+                    hue=params['neon_hue'],
+                    intensity=params['neon_intensity'],
+                    mix=params['neon_mix']
+                )
 
         final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
         
