@@ -218,35 +218,62 @@ def apply_inversion(img, mix=1.0):
     """Fonction séparée corrigée"""
     inverted = 1.0 - img
     return img * (1 - mix) + inverted * mix
-def neon_effect(img, hue=0.8, intensity=0.7, mix=0.5):
+
+
+def neon_effect(img, hue=0.8, intensity=0.7, mix=0.5, saturation=1.0, 
+               glow_spread=2.0, power=3.0, secondary_glow=0.5, 
+               hue_shift=0.1, contour_width=1):
     """
-    Effet néon sur les contours
-    - hue: Teinte du néon (0-1)
-    - intensity: Force de l'effet (0-2)
+    Effet néon avancé avec multiples réglages :
+    - hue: Teinte de base (0-1)
+    - intensity: Intensité lumineuse (0-3)
     - mix: Mélange avec l'original (0-1)
+    - saturation: Pureté de la couleur (0-1)
+    - glow_spread: Étendue du glow (0.5-5.0)
+    - power: Amplification des contours (1-5)
+    - secondary_glow: Effet de halo secondaire (0-1)
+    - hue_shift: Variation chromatique dynamique (0-0.3)
+    - contour_width: Épaisseur des contours (1-5)
     """
-    # Détection des contours avec filtre Sobel
+    # Détection des contours améliorée
     gray = 0.299 * img[..., 0] + 0.587 * img[..., 1] + 0.114 * img[..., 2]
+    
+    # Épaississement des contours
+    for _ in range(contour_width):
+        gray = ndimage.maximum_filter(gray, size=3)
+    
     h = ndimage.sobel(gray, axis=1)
     v = ndimage.sobel(gray, axis=0)
     edges = np.sqrt(h**2 + v**2)
     
-    # Création du glow néon
-    glow = ndimage.gaussian_filter(edges**3, sigma=2) * intensity * 3
-    glow = np.clip(glow, 0, 1)
+    # Création du glow principal
+    glow_main = ndimage.gaussian_filter(edges**power, sigma=glow_spread) * intensity * 2
+    glow_secondary = ndimage.gaussian_filter(edges, sigma=glow_spread*3) * secondary_glow
     
-    # Conversion en couleur HSV
+    # Combinaison des effets de lumière
+    combined_glow = np.clip(glow_main * 0.8 + glow_secondary * 0.4, 0, 1)
+    
+    # Variation chromatique dynamique
+    rows, cols = img.shape[:2]
+    x = np.linspace(0, 4*np.pi, cols)
+    y = np.linspace(0, 4*np.pi, rows)
+    xx, yy = np.meshgrid(x, y)
+    hue_variation = hue + hue_shift * np.sin(xx * yy * 0.3)
+    
+    # Création de la couleur
     hsv = np.zeros_like(img)
-    hsv[..., 0] = hue  # Teinte
-    hsv[..., 1] = 1.0  # Saturation max
-    hsv[..., 2] = glow  # Luminosité basée sur les contours
+    hsv[..., 0] = np.clip(hue_variation, 0, 1)  # Teinte dynamique
+    hsv[..., 1] = saturation  # Saturation réglable
+    hsv[..., 2] = combined_glow  # Luminosité
     
-    # Conversion HSV vers RGB
     neon_rgb = mcolors.hsv_to_rgb(hsv)
     
-    # Mélange final
-    return np.clip(img * (1 - mix) + neon_rgb * mix, 0, 1)
-
+    # Effet de bloom final
+    bloom = ndimage.gaussian_filter(neon_rgb, sigma=1) * 1.2
+    final_effect = np.clip(neon_rgb * 0.7 + bloom * 0.5, 0, 1)
+    
+    # Mélange avec l'original
+    return np.clip(img * (1 - mix) + final_effect * mix, 0, 1)
 
 # Contrôles latéraux
 with st.sidebar:
@@ -287,10 +314,15 @@ with st.sidebar:
     
     if 'Effet Néon' in effects:
         st.subheader("Paramètres Néon")
-        params['neon_hue'] = st.slider("Teinte Néon", 0.0, 1.0, 0.8, 0.01,
-                                      help="0=rouge, 0.33=vert, 0.66=bleu")
-        params['neon_intensity'] = st.slider("Intensité Lumière", 0.0, 2.0, 0.7, 0.1)
-        params['neon_mix'] = st.slider("Mix Néon/Original", 0.0, 1.0, 0.5, 0.05)
+        params['neon_hue'] = st.slider("Teinte de base", 0.0, 1.0, 0.8, 0.01)
+        params['neon_saturation'] = st.slider("Saturation", 0.0, 1.0, 0.9, 0.05)
+        params['neon_intensity'] = st.slider("Intensité", 0.0, 3.0, 1.5, 0.1)
+        params['neon_power'] = st.slider("Amplification", 1.0, 5.0, 3.0, 0.1)
+        params['glow_spread'] = st.slider("Étendue du glow", 0.5, 5.0, 2.0, 0.1)
+        params['secondary_glow'] = st.slider("Halo secondaire", 0.0, 1.0, 0.3, 0.05)
+        params['hue_shift'] = st.slider("Variation chromatique", 0.0, 0.3, 0.1, 0.01)
+        params['contour_width'] = st.slider("Épaisseur contours", 1, 5, 2)
+        params['neon_mix'] = st.slider("Mix final", 0.0, 1.0, 0.7, 0.05)
 
       
     if 'Diffraction Spectrale' in effects:
@@ -424,7 +456,13 @@ if uploaded_file and effects:
                     result,
                     hue=params['neon_hue'],
                     intensity=params['neon_intensity'],
-                    mix=params['neon_mix']
+                    mix=params['neon_mix'],
+                    saturation=params['neon_saturation'],
+                    glow_spread=params['glow_spread'],
+                    power=params['neon_power'],
+                    secondary_glow=params['secondary_glow'],
+                    hue_shift=params['hue_shift'],
+                    contour_width=params['contour_width']
                 )
 
         final_output = np.clip(img_array * (1 - params['global_mix']) + result * params['global_mix'], 0, 1)
