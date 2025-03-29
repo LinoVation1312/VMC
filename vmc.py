@@ -285,7 +285,7 @@ with st.sidebar:
     
     params = {}
     
-      if 'Effet Néon' in effects:
+    if 'Effet Néon' in effects:
         st.subheader("Paramètres Néon")
         params['neon_hue'] = st.slider("Teinte Néon", 0.0, 1.0, 0.8, 0.01,
                                       help="0=rouge, 0.33=vert, 0.66=bleu")
